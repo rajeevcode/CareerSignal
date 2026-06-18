@@ -1,0 +1,22 @@
+{
+  "Product Manager": ["PM", "Product Owner", "PO", "Product Lead"],
+  "AI Product Manager": ["AI PM", "ML Product Manager", "AI/ML PM"],
+  "Technical Product Manager": ["TPM", "Technical PM"],
+  "Data Product Manager": ["Data PM", "Analytics PM"],
+  "SQL": ["Structured Query Language", "PostgreSQL", "MySQL"],
+  "Python": ["Py", "Python3"],
+  "Machine Learning": ["ML", "Deep Learning", "DL"],
+  "Artificial Intelligence": ["AI", "GenAI", "Generative AI"],
+  "Large Language Models": ["LLM", "LLMs", "GPT", "Claude"],
+  "Agile": ["Scrum", "Kanban", "Sprint"],
+  "B2B SaaS": ["SaaS", "Enterprise SaaS", "B2B Software"],
+  "Fintech": ["Financial Technology", "Payments", "Banking Tech"],
+  "Marketplace": ["Two-sided marketplace", "Platform"],
+  "Roadmap": ["Product Roadmap", "Prioritization"],
+  "Stakeholder Management": ["Stakeholders", "Cross-functional"],
+  "Jira": ["Atlassian Jira", "Project Management"],
+  "RAG": ["Retrieval Augmented Generation"],
+  "Data Pipeline": ["ETL", "Data Engineering"],
+  "A/B Testing": ["Experimentation", "Growth experiments"],
+  "User Research": ["UX Research", "Customer Discovery"]
+}

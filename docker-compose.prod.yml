@@ -1,0 +1,50 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_PATH: /app/data/careersignal.db
+      UPLOADS_PATH: /app/data/uploads
+      AI_SERVICE_URL: http://ai:8000
+      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-CareerSignal <onboarding@resend.dev>}
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      ai:
+        condition: service_started
+    restart: unless-stopped
+
+  ai:
+    build:
+      context: ./services/ai
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY in .env}
+      DATABASE_PATH: /app/data/careersignal.db
+      CORS_ORIGINS: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    environment:
+      DATABASE_PATH: /app/data/careersignal.db
+    volumes:
+      - .:/app
+      - ./data:/app/data
+    command: sh -c "pnpm install --frozen-lockfile && pnpm --filter @careersignal/shared build && pnpm --filter @careersignal/db build && pnpm db:push && pnpm db:seed"
+    profiles:
+      - setup

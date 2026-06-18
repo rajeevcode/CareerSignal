@@ -1,0 +1,240 @@
+'use client';
+
+import Link from 'next/link';
+import { Bookmark, CheckCircle2, MessageCircle, Send } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import type { Job, MatchScore } from '@careersignal/shared';
+import { InterviewProbabilityCard } from '@/components/InterviewProbabilityCard';
+import { ExplainabilityPanel } from '@/components/ExplainabilityPanel';
+import { CVGapAnalyzerPanel } from '@/components/CVGapAnalyzerPanel';
+import { useToast } from '@/components/ToastProvider';
+import { formatSalary, formatDate } from '@/lib/utils';
+
+interface Props {
+  job: Job;
+  matchScore: MatchScore | null;
+  candidateId: string | null;
+  isSaved: boolean;
+  hasApplied: boolean;
+}
+
+export function JobDetailClient({ job, matchScore, candidateId, isSaved, hasApplied }: Props) {
+  const router = useRouter();
+  const { showToast } = useToast();
+  const [saved, setSaved] = useState(isSaved);
+  const [applied, setApplied] = useState(hasApplied);
+  const [loading, setLoading] = useState(false);
+  const [applyNotice, setApplyNotice] = useState<string | null>(null);
+
+  async function toggleSave() {
+    if (!candidateId) { router.push('/login'); return; }
+    setLoading(true);
+    await fetch('/api/save-job', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_id: job.id, unsave: saved }),
+    });
+    setSaved(!saved);
+    setLoading(false);
+  }
+
+  async function apply() {
+    if (!candidateId) { router.push('/login'); return; }
+    setLoading(true);
+    setApplyNotice(null);
+    const res = await fetch('/api/apply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ job_id: job.id }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      setApplied(true);
+      const title = data.job_title || job.title;
+      const company = data.company_name || job.company?.name || 'the company';
+      const emailNote = data.email_sent
+        ? 'A confirmation email is on its way.'
+        : 'Track this application anytime from Applied Jobs.';
+      setApplyNotice(`Added to Applied Jobs. ${emailNote}`);
+      showToast({
+        title: 'Added to Applied Jobs',
+        description: `${title} at ${company}. ${emailNote}`,
+        action: { label: 'View Applied Jobs', href: '/applied' },
+      });
+    } else {
+      showToast({
+        title: 'Application failed',
+        description: data.error || 'Please try again.',
+        durationMs: 5000,
+      });
+    }
+    setLoading(false);
+  }
+
+  const company = job.company;
+  const explanation = matchScore?.explanation_json;
+
+  return (
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+      <div className="grid gap-8 lg:grid-cols-3">
+        <div className="lg:col-span-2 space-y-8">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900">{job.title}</h1>
+            <p className="mt-2 text-lg text-slate-600">{company?.name}</p>
+            <div className="mt-4 flex flex-wrap gap-2 text-sm text-slate-500">
+              {job.location && <span>{job.location}</span>}
+              <span>•</span>
+              <span className="capitalize">{job.remote_type}</span>
+              <span>•</span>
+              <span>{formatSalary(job.salary_min, job.salary_max, job.salary_currency)}</span>
+              <span>•</span>
+              <span>Posted {formatDate(job.posted_at)}</span>
+              {job.visa_sponsorship && (
+                <>
+                  <span>•</span>
+                  <span className="text-emerald-600">Visa sponsorship</span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {applyNotice && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex gap-3">
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+                  <div>
+                    <p className="font-medium text-emerald-900">Application recorded</p>
+                    <p className="mt-1 text-sm text-emerald-800">{applyNotice}</p>
+                  </div>
+                </div>
+                <Link
+                  href="/applied"
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+                >
+                  View Applied Jobs
+                </Link>
+              </div>
+            </div>
+          )}
+
+          <div className="lg:hidden">
+            {matchScore ? (
+              <InterviewProbabilityCard
+                score={matchScore.interview_signal ?? matchScore.final_score}
+                jdMatchScore={matchScore.jd_match_score}
+                cvScore={matchScore.cv_score}
+                breakdown={matchScore}
+                explanation={explanation}
+                compact
+              />
+            ) : !candidateId ? (
+              <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-6 text-center">
+                <p className="font-medium text-indigo-900">Sign in to see your Interview Signal</p>
+                <a href="/login" className="mt-3 inline-block text-sm text-indigo-600 hover:underline">Log in →</a>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="prose prose-slate max-w-none">
+            <h2 className="text-xl font-semibold">About the role</h2>
+            <div className="mt-2 whitespace-pre-wrap text-slate-700">{job.description}</div>
+          </div>
+
+          <div>
+            <h3 className="font-semibold text-slate-900">Required skills</h3>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {job.required_skills.map((s) => (
+                <span key={s} className="rounded-full bg-indigo-50 px-3 py-1 text-sm text-indigo-700">{s}</span>
+              ))}
+            </div>
+          </div>
+
+          {explanation && (
+            <ExplainabilityPanel explanation={explanation} />
+          )}
+
+          {candidateId && (
+            <div id="cv-gap">
+            <CVGapAnalyzerPanel
+              candidateId={candidateId}
+              jobId={job.id}
+              initialGap={matchScore?.explanation_json?.cv_gap}
+            />
+            </div>
+          )}
+        </div>
+
+        <div className="hidden space-y-4 lg:block">
+          {matchScore ? (
+            <>
+              <InterviewProbabilityCard
+                score={matchScore.interview_signal ?? matchScore.final_score}
+                jdMatchScore={matchScore.jd_match_score}
+                cvScore={matchScore.cv_score}
+                breakdown={matchScore}
+                explanation={explanation}
+                sticky
+              />
+              <div className="space-y-2">
+                <button
+                  onClick={apply}
+                  disabled={loading || applied}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  <Send className="h-4 w-4" />
+                  {applied ? 'Applied' : 'Apply Now'}
+                </button>
+                <a
+                  href="#cv-gap"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 py-3 text-sm font-medium text-indigo-700 hover:bg-indigo-100"
+                >
+                  Improve CV for this Job
+                </a>
+                <button
+                  onClick={toggleSave}
+                  disabled={loading}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 py-3 text-sm font-medium hover:bg-slate-50"
+                >
+                  <Bookmark className={`h-4 w-4 ${saved ? 'fill-indigo-600 text-indigo-600' : ''}`} />
+                  {saved ? 'Saved' : 'Save Job'}
+                </button>
+                <Link
+                  href="/career-coach"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  Ask AI About This Job
+                </Link>
+              </div>
+            </>
+          ) : candidateId ? (
+            <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+              Computing your match score...
+            </div>
+          ) : (
+            <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-6 text-center">
+              <p className="font-medium text-indigo-900">Sign in to see your interview probability</p>
+              <a href="/login" className="mt-3 inline-block text-sm text-indigo-600 hover:underline">Log in →</a>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Mobile action bar */}
+      <div className="fixed bottom-0 left-0 right-0 flex gap-2 border-t border-slate-200 bg-white p-4 lg:hidden">
+        <button
+          onClick={apply}
+          disabled={loading || applied}
+          className="flex-1 rounded-lg bg-indigo-600 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+        >
+          {applied ? 'Applied' : 'Apply'}
+        </button>
+        <button onClick={toggleSave} disabled={loading} className="rounded-lg border px-4 py-2.5 text-sm">
+          {saved ? 'Saved' : 'Save'}
+        </button>
+      </div>
+    </div>
+  );
+}

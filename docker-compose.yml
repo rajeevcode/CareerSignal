@@ -1,0 +1,68 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    environment:
+      DATABASE_PATH: /app/data/careersignal.db
+      UPLOADS_PATH: /app/data/uploads
+      AI_SERVICE_URL: http://ai:8000
+      AUTH_SECRET: ${AUTH_SECRET:-dev-secret-change-in-production}
+      NEXT_PUBLIC_APP_URL: http://localhost:${WEB_PORT:-3000}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-CareerSignal <onboarding@resend.dev>}
+    volumes:
+      - .:/app
+      - web_node_modules:/app/node_modules
+      - web_app_node_modules:/app/apps/web/node_modules
+      - web_db_node_modules:/app/packages/db/node_modules
+      - web_shared_node_modules:/app/packages/shared/node_modules
+      - ./data:/app/data
+    depends_on:
+      ai:
+        condition: service_started
+
+  ai:
+    build:
+      context: ./services/ai
+      dockerfile: Dockerfile
+    ports:
+      - "${AI_PORT:-8000}:8000"
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      DATABASE_PATH: /app/data/careersignal.db
+      CORS_ORIGINS: http://localhost:${WEB_PORT:-3000}
+      LLM_MODEL: ${LLM_MODEL:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-}
+    volumes:
+      - ./services/ai:/app
+      - ./data:/app/data
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+    environment:
+      DATABASE_PATH: /app/data/careersignal.db
+    volumes:
+      - .:/app
+      - web_node_modules:/app/node_modules
+      - web_db_node_modules:/app/packages/db/node_modules
+      - web_shared_node_modules:/app/packages/shared/node_modules
+      - ./data:/app/data
+    command: sh -c "pnpm --filter @careersignal/shared build && pnpm --filter @careersignal/db build && pnpm db:push && pnpm db:seed"
+    profiles:
+      - setup
+
+volumes:
+  web_node_modules:
+  web_app_node_modules:
+  web_db_node_modules:
+  web_shared_node_modules:

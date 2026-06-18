@@ -1,0 +1,27 @@
+import { NextResponse } from 'next/server';
+import { getSession } from '@/lib/auth/session';
+import { getCandidateRowByUserId } from '@/lib/queries';
+import { getAiServiceUrl } from '@/lib/utils';
+
+export async function POST(request: Request) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { candidate_id, job_id } = await request.json();
+  const candidate = getCandidateRowByUserId(session.userId);
+  if (!candidate || candidate.id !== candidate_id) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  try {
+    const res = await fetch(`${getAiServiceUrl()}/analyze-gap`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ candidate_id, job_id }),
+    });
+    if (!res.ok) throw new Error('Analysis failed');
+    return NextResponse.json(await res.json());
+  } catch {
+    return NextResponse.json({ error: 'AI service unavailable' }, { status: 503 });
+  }
+}

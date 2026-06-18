@@ -1,0 +1,12 @@
+---
+description: Use main as the default branch for all git commits and pushes in this repo.
+alwaysApply: true
+---
+
+# Git branch policy
+
+- Always work on the **`main`** branch for commits in this repository.
+- Before committing, ensure the current branch is `main` (create it from `master` or check it out if needed).
+- Do not commit on `master` or feature branches unless the user explicitly asks for a branch workflow.
+- When pushing, push to `origin/main` unless the user specifies otherwise.
+- Never force-push to `main` unless the user explicitly requests it.

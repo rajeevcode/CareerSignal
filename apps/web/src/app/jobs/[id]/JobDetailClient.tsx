@@ -2,13 +2,13 @@
 
 import Link from 'next/link';
 import { Bookmark, CheckCircle2, MessageCircle, Send } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { Job, MatchScore } from '@careersignal/shared';
 import { InterviewProbabilityCard } from '@/components/InterviewProbabilityCard';
 import { ExplainabilityPanel } from '@/components/ExplainabilityPanel';
 import { CVGapAnalyzerPanel } from '@/components/CVGapAnalyzerPanel';
 import { useToast } from '@/components/ToastProvider';
+import { useAuthGate } from '@/components/auth/AuthGate';
 import { formatSalary, formatDate } from '@/lib/utils';
 
 interface Props {
@@ -20,15 +20,15 @@ interface Props {
 }
 
 export function JobDetailClient({ job, matchScore, candidateId, isSaved, hasApplied }: Props) {
-  const router = useRouter();
   const { showToast } = useToast();
+  const authGate = useAuthGate();
   const [saved, setSaved] = useState(isSaved);
   const [applied, setApplied] = useState(hasApplied);
   const [loading, setLoading] = useState(false);
   const [applyNotice, setApplyNotice] = useState<string | null>(null);
 
   async function toggleSave() {
-    if (!candidateId) { router.push('/login'); return; }
+    if (!candidateId) { authGate.open({ reason: 'Create a free account to save jobs to your tracker.', redirect: `/jobs/${job.id}` }); return; }
     setLoading(true);
     await fetch('/api/save-job', {
       method: 'POST',
@@ -40,7 +40,7 @@ export function JobDetailClient({ job, matchScore, candidateId, isSaved, hasAppl
   }
 
   async function apply() {
-    if (!candidateId) { router.push('/login'); return; }
+    if (!candidateId) { authGate.open({ reason: 'Create a free account to apply and track this application.', redirect: `/jobs/${job.id}` }); return; }
     setLoading(true);
     setApplyNotice(null);
     const res = await fetch('/api/apply', {
@@ -80,9 +80,9 @@ export function JobDetailClient({ job, matchScore, candidateId, isSaved, hasAppl
       <div className="grid gap-8 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-8">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">{job.title}</h1>
-            <p className="mt-2 text-lg text-slate-600">{company?.name}</p>
-            <div className="mt-4 flex flex-wrap gap-2 text-sm text-slate-500">
+            <h1 className="text-3xl font-bold text-foreground">{job.title}</h1>
+            <p className="mt-2 text-lg text-muted-foreground">{company?.name}</p>
+            <div className="mt-4 flex flex-wrap gap-2 text-sm text-muted-foreground">
               {job.location && <span>{job.location}</span>}
               <span>•</span>
               <span className="capitalize">{job.remote_type}</span>
@@ -93,25 +93,25 @@ export function JobDetailClient({ job, matchScore, candidateId, isSaved, hasAppl
               {job.visa_sponsorship && (
                 <>
                   <span>•</span>
-                  <span className="text-emerald-600">Visa sponsorship</span>
+                  <span className="text-success">Visa sponsorship</span>
                 </>
               )}
             </div>
           </div>
 
           {applyNotice && (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+            <div className="rounded-xl border border-border bg-success-soft p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex gap-3">
-                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-success" />
                   <div>
-                    <p className="font-medium text-emerald-900">Application recorded</p>
-                    <p className="mt-1 text-sm text-emerald-800">{applyNotice}</p>
+                    <p className="font-medium text-success">Application recorded</p>
+                    <p className="mt-1 text-sm text-success">{applyNotice}</p>
                   </div>
                 </div>
                 <Link
                   href="/applied"
-                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+                  className="rounded-lg bg-success px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
                 >
                   View Applied Jobs
                 </Link>
@@ -130,23 +130,23 @@ export function JobDetailClient({ job, matchScore, candidateId, isSaved, hasAppl
                 compact
               />
             ) : !candidateId ? (
-              <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-6 text-center">
-                <p className="font-medium text-indigo-900">Sign in to see your Interview Signal</p>
-                <a href="/login" className="mt-3 inline-block text-sm text-indigo-600 hover:underline">Log in →</a>
+              <div className="rounded-xl border border-border bg-accent p-6 text-center">
+                <p className="font-medium text-accent-foreground">Sign in to see your Interview Signal</p>
+                <a href="/login" className="mt-3 inline-block text-sm text-primary hover:underline">Log in →</a>
               </div>
             ) : null}
           </div>
 
           <div className="prose prose-slate max-w-none">
             <h2 className="text-xl font-semibold">About the role</h2>
-            <div className="mt-2 whitespace-pre-wrap text-slate-700">{job.description}</div>
+            <div className="mt-2 whitespace-pre-wrap text-foreground">{job.description}</div>
           </div>
 
           <div>
-            <h3 className="font-semibold text-slate-900">Required skills</h3>
+            <h3 className="font-semibold text-foreground">Required skills</h3>
             <div className="mt-2 flex flex-wrap gap-2">
               {job.required_skills.map((s) => (
-                <span key={s} className="rounded-full bg-indigo-50 px-3 py-1 text-sm text-indigo-700">{s}</span>
+                <span key={s} className="rounded-full bg-accent px-3 py-1 text-sm text-accent-foreground">{s}</span>
               ))}
             </div>
           </div>
@@ -160,6 +160,7 @@ export function JobDetailClient({ job, matchScore, candidateId, isSaved, hasAppl
             <CVGapAnalyzerPanel
               candidateId={candidateId}
               jobId={job.id}
+              jobTitle={job.title}
               initialGap={matchScore?.explanation_json?.cv_gap}
             />
             </div>
@@ -181,28 +182,28 @@ export function JobDetailClient({ job, matchScore, candidateId, isSaved, hasAppl
                 <button
                   onClick={apply}
                   disabled={loading || applied}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3 font-semibold text-white hover:bg-indigo-700 disabled:opacity-50"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 font-semibold text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
                 >
                   <Send className="h-4 w-4" />
                   {applied ? 'Applied' : 'Apply Now'}
                 </button>
                 <a
                   href="#cv-gap"
-                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 py-3 text-sm font-medium text-indigo-700 hover:bg-indigo-100"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-accent py-3 text-sm font-medium text-accent-foreground hover:bg-accent/80"
                 >
                   Improve CV for this Job
                 </a>
                 <button
                   onClick={toggleSave}
                   disabled={loading}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 py-3 text-sm font-medium hover:bg-slate-50"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-border py-3 text-sm font-medium hover:bg-muted"
                 >
-                  <Bookmark className={`h-4 w-4 ${saved ? 'fill-indigo-600 text-indigo-600' : ''}`} />
+                  <Bookmark className={`h-4 w-4 ${saved ? 'fill-primary text-primary' : ''}`} />
                   {saved ? 'Saved' : 'Save Job'}
                 </button>
                 <Link
                   href="/career-coach"
-                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-border py-3 text-sm font-medium text-muted-foreground hover:bg-muted"
                 >
                   <MessageCircle className="h-4 w-4" />
                   Ask AI About This Job
@@ -210,24 +211,24 @@ export function JobDetailClient({ job, matchScore, candidateId, isSaved, hasAppl
               </div>
             </>
           ) : candidateId ? (
-            <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+            <div className="rounded-xl border border-border bg-card p-6 text-center text-sm text-muted-foreground">
               Computing your match score...
             </div>
           ) : (
-            <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-6 text-center">
-              <p className="font-medium text-indigo-900">Sign in to see your interview probability</p>
-              <a href="/login" className="mt-3 inline-block text-sm text-indigo-600 hover:underline">Log in →</a>
+            <div className="rounded-xl border border-border bg-accent p-6 text-center">
+              <p className="font-medium text-accent-foreground">Sign in to see your interview probability</p>
+              <a href="/login" className="mt-3 inline-block text-sm text-primary hover:underline">Log in →</a>
             </div>
           )}
         </div>
       </div>
 
       {/* Mobile action bar */}
-      <div className="fixed bottom-0 left-0 right-0 flex gap-2 border-t border-slate-200 bg-white p-4 lg:hidden">
+      <div className="fixed bottom-0 left-0 right-0 flex gap-2 border-t border-border bg-card p-4 lg:hidden">
         <button
           onClick={apply}
           disabled={loading || applied}
-          className="flex-1 rounded-lg bg-indigo-600 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+          className="flex-1 rounded-lg bg-primary py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
         >
           {applied ? 'Applied' : 'Apply'}
         </button>

@@ -1,8 +1,18 @@
 import type { Metadata } from 'next';
-import { Header } from '@/components/Header';
+import { Inter } from 'next/font/google';
+import { SiteHeader } from '@/components/cs/SiteHeader';
+import { SiteFooter } from '@/components/cs/SiteFooter';
 import { PostHogProvider } from '@/components/PostHogProvider';
 import { ToastProvider } from '@/components/ToastProvider';
+import { AuthGateProvider } from '@/components/auth/AuthGate';
+import { ThemeProvider, THEME_NO_FLASH_SCRIPT } from '@/components/theme/ThemeProvider';
 import './globals.css';
+
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: {
@@ -19,19 +29,23 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className="min-h-screen bg-slate-50 antialiased">
-        <PostHogProvider>
-          <ToastProvider>
-            <Header />
-            <main>{children}</main>
-            <footer className="mt-16 border-t border-slate-200 bg-white py-8">
-              <div className="mx-auto max-w-7xl px-4 text-center text-sm text-slate-500">
-                © {new Date().getFullYear()} CareerSignal — Build your CV. Match any job. Know your interview signal.
-              </div>
-            </footer>
-          </ToastProvider>
-        </PostHogProvider>
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
+      <head>
+        {/* Set the theme class before paint to avoid a light→dark flash. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_NO_FLASH_SCRIPT }} />
+      </head>
+      <body className="min-h-screen bg-background text-foreground antialiased">
+        <ThemeProvider>
+          <PostHogProvider>
+            <ToastProvider>
+              <AuthGateProvider>
+                <SiteHeader />
+                <main>{children}</main>
+                <SiteFooter />
+              </AuthGateProvider>
+            </ToastProvider>
+          </PostHogProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

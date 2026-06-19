@@ -8,8 +8,8 @@ export default async function AdminJobsPage() {
   if (!session) redirect('/login');
   if (session.role !== 'admin') redirect('/dashboard');
 
-  const jobs = listAllJobs();
-  const companies = listCompanies();
+  const jobs = await listAllJobs();
+  const companies = await listCompanies();
 
   return <AdminJobsClient jobs={jobs} companies={companies} />;
 }

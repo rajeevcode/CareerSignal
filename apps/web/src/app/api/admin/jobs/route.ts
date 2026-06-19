@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   const now = toIsoNow();
   const id = newId();
 
-  db.insert(jobs).values({
+  await db.insert(jobs).values({
     id,
     companyId: body.company_id,
     title: body.title,
@@ -31,21 +31,20 @@ export async function POST(request: Request) {
     salaryCurrency: body.salary_currency ?? 'INR',
     experienceMin: body.experience_min ?? null,
     experienceMax: body.experience_max ?? null,
-    requiredSkills: JSON.stringify(body.required_skills ?? []),
-    niceToHaveSkills: JSON.stringify(body.nice_to_have_skills ?? []),
+    requiredSkills: body.required_skills ?? [],
+    niceToHaveSkills: body.nice_to_have_skills ?? [],
     employmentType: body.employment_type ?? 'full_time',
     visaSponsorship: Boolean(body.visa_sponsorship),
     functionTag: body.function_tag ?? null,
-    techStack: JSON.stringify(body.tech_stack ?? []),
+    techStack: body.tech_stack ?? [],
     status: body.status ?? 'published',
     sourceUrl: null,
     externalId: null,
     applicantCount: 0,
-    embedding: null,
     postedAt: now,
     createdAt: now,
     updatedAt: now,
-  }).run();
+  });
 
   try {
     await fetch(`${getAiServiceUrl()}/parse-job`, {

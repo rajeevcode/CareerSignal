@@ -23,6 +23,11 @@ port = 54324
 enabled = true
 file_size_limit = "50MiB"
 
+# Disabled locally — the analytics/vector logging container bind-mounts the
+# Docker socket, which the Colima backend does not support.
+[analytics]
+enabled = false
+
 [auth]
 enabled = true
 site_url = "http://localhost:3000"
@@ -35,8 +40,24 @@ enable_signup = true
 double_confirm_changes = true
 enable_confirmations = false
 
+# Google OAuth — disabled locally (no credentials). Enable in production by
+# setting GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET and enabled = true.
 [auth.external.google]
 enabled = true
 client_id = "env(GOOGLE_CLIENT_ID)"
 secret = "env(GOOGLE_CLIENT_SECRET)"
+# redirect_uri intentionally omitted — GoTrue derives it from api_external_url
+# (http://127.0.0.1:54321/auth/v1/callback). Setting it explicitly can cause the
+# CLI/GoTrue to mark the provider disabled in this version.
+
+# LinkedIn OAuth (OpenID Connect) — disabled locally (no credentials). Enable in
+# production by setting LINKEDIN_CLIENT_ID / LINKEDIN_CLIENT_SECRET and enabled = true.
+# TODO: provision a LinkedIn app at https://www.linkedin.com/developers and request
+# the "Sign In with LinkedIn using OpenID Connect" product. The app uses provider
+# key `linkedin_oidc` (see lib/auth/oauth.ts). Until enabled, the social button
+# renders but returns a friendly "not set up yet" message.
+[auth.external.linkedin_oidc]
+enabled = false
+client_id = "env(LINKEDIN_CLIENT_ID)"
+secret = "env(LINKEDIN_CLIENT_SECRET)"
 redirect_uri = "http://localhost:54321/auth/v1/callback"

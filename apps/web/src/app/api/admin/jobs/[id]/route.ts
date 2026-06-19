@@ -20,10 +20,10 @@ export async function PATCH(
   const body = await request.json();
   const db = getDb();
 
-  db.update(jobs).set({
+  await db.update(jobs).set({
     ...(body.status ? { status: body.status } : {}),
     updatedAt: new Date().toISOString(),
-  }).where(eq(jobs.id, id)).run();
+  }).where(eq(jobs.id, id));
 
   return NextResponse.json({ success: true });
 }
@@ -35,6 +35,6 @@ export async function DELETE(
   const auth = await requireAdmin();
   if ('error' in auth && auth.error) return auth.error;
   const { id } = await params;
-  getDb().delete(jobs).where(eq(jobs.id, id)).run();
+  await getDb().delete(jobs).where(eq(jobs.id, id));
   return NextResponse.json({ success: true });
 }

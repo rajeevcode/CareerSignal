@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   const id = newId();
   const now = toIsoNow();
 
-  getDb().insert(companies).values({
+  await getDb().insert(companies).values({
     id,
     name,
     website: website ?? null,
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     description: null,
     logoUrl: null,
     createdAt: now,
-  }).run();
+  });
 
   return NextResponse.json({ id });
 }

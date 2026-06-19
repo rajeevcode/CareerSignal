@@ -1,3 +1,4 @@
+import io
 import json
 import re
 from typing import Any
@@ -46,6 +47,13 @@ class ParsedCV(BaseModel):
     weak_sections: list[str] = Field(default_factory=list)
 
 
+ALLOWED_CV_EXTENSIONS = (".pdf", ".docx")
+
+
+class UnsupportedFileType(ValueError):
+    """Raised when an uploaded CV is not a PDF or DOCX file."""
+
+
 def extract_text_from_pdf(content: bytes) -> str:
     doc = fitz.open(stream=content, filetype="pdf")
     text_parts = []
@@ -53,6 +61,19 @@ def extract_text_from_pdf(content: bytes) -> str:
         text_parts.append(page.get_text())
     doc.close()
     return "\n".join(text_parts).strip()
+
+
+def extract_text_from_docx(content: bytes) -> str:
+    from docx import Document
+
+    doc = Document(io.BytesIO(content))
+    parts = [p.text for p in doc.paragraphs if p.text and p.text.strip()]
+    for table in doc.tables:
+        for row in table.rows:
+            cells = [cell.text.strip() for cell in row.cells if cell.text and cell.text.strip()]
+            if cells:
+                parts.append(" | ".join(cells))
+    return "\n".join(parts).strip()
 
 
 def compute_ats_score(text: str, parsed: ParsedCV) -> float:
@@ -131,10 +152,13 @@ def _heuristic_parse(text: str) -> ParsedCV:
 
 
 async def parse_cv(content: bytes, filename: str) -> dict[str, Any]:
-    if filename.lower().endswith(".pdf"):
+    name = (filename or "").lower()
+    if name.endswith(".pdf"):
         text = extract_text_from_pdf(content)
+    elif name.endswith(".docx"):
+        text = extract_text_from_docx(content)
     else:
-        text = content.decode("utf-8", errors="ignore")
+        raise UnsupportedFileType("Only PDF and DOCX files are supported.")
 
     parsed = await parse_cv_with_llm(text)
     ats_score = compute_ats_score(text, parsed)

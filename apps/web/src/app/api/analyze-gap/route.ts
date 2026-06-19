@@ -7,8 +7,8 @@ export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const { candidate_id, job_id } = await request.json();
-  const candidate = getCandidateRowByUserId(session.userId);
+  const { candidate_id, job_id, role_style } = await request.json();
+  const candidate = await getCandidateRowByUserId(session.userId);
   if (!candidate || candidate.id !== candidate_id) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     const res = await fetch(`${getAiServiceUrl()}/analyze-gap`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ candidate_id, job_id }),
+      body: JSON.stringify({ candidate_id, job_id, role_style: role_style || 'ai_product_manager' }),
     });
     if (!res.ok) throw new Error('Analysis failed');
     return NextResponse.json(await res.json());

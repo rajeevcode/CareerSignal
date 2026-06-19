@@ -65,27 +65,25 @@ export function TargetRolesClient({ currentTitle, experienceTitles, skills, exis
       body: JSON.stringify({ target_roles: selected }),
     });
 
-    const res = await fetch('/api/onboarding', {
-      method: 'PATCH',
+    await fetch('/api/onboarding', {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ complete: true }),
+      body: JSON.stringify({ step: 3, target_roles: selected }),
     });
 
-    if (res.ok) {
-      router.push('/dashboard');
-      router.refresh();
-    }
+    router.push('/onboarding/market');
+    router.refresh();
     setLoading(false);
   }
 
   return (
     <OnboardingLayout step={3} title="What roles are you targeting?">
-      <p className="mt-2 text-slate-600">
+      <p className="mt-2 text-muted-foreground">
         Select one or more roles. We&apos;ll rank jobs and build your interview probability map around these.
       </p>
 
       <div className="mt-6">
-        <h3 className="text-sm font-medium text-slate-700">Suggested for you</h3>
+        <h3 className="text-sm font-medium text-foreground">Suggested for you</h3>
         <div className="mt-3 flex flex-wrap gap-2">
           {suggested.map((role) => (
             <button
@@ -94,8 +92,8 @@ export function TargetRolesClient({ currentTitle, experienceTitles, skills, exis
               onClick={() => toggleRole(role)}
               className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
                 selected.includes(role)
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-white border border-slate-200 text-slate-700 hover:border-indigo-300'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-card border border-border text-foreground hover:border-primary'
               }`}
             >
               {role}
@@ -111,12 +109,12 @@ export function TargetRolesClient({ currentTitle, experienceTitles, skills, exis
           value={customRole}
           onChange={(e) => setCustomRole(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCustomRole())}
-          className="flex-1 rounded-lg border border-slate-200 px-3 py-2"
+          className="flex-1 rounded-lg border border-border px-3 py-2"
         />
         <button
           type="button"
           onClick={addCustomRole}
-          className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium hover:bg-slate-50"
+          className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted"
         >
           Add
         </button>
@@ -124,12 +122,12 @@ export function TargetRolesClient({ currentTitle, experienceTitles, skills, exis
 
       {selected.length > 0 && (
         <div className="mt-4">
-          <p className="text-sm text-slate-600">{selected.length} role{selected.length > 1 ? 's' : ''} selected</p>
+          <p className="text-sm text-muted-foreground">{selected.length} role{selected.length > 1 ? 's' : ''} selected</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {selected.map((role) => (
-              <span key={role} className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-3 py-1 text-sm text-indigo-800">
+              <span key={role} className="inline-flex items-center gap-1 rounded-full bg-accent px-3 py-1 text-sm text-accent-foreground">
                 {role}
-                <button type="button" onClick={() => toggleRole(role)} className="text-indigo-600 hover:text-indigo-900">×</button>
+                <button type="button" onClick={() => toggleRole(role)} className="text-primary hover:text-primary-hover">×</button>
               </span>
             ))}
           </div>
@@ -140,7 +138,7 @@ export function TargetRolesClient({ currentTitle, experienceTitles, skills, exis
         type="button"
         onClick={handleFinish}
         disabled={loading || selected.length === 0}
-        className="mt-8 w-full rounded-lg bg-indigo-600 py-3 font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+        className="mt-8 w-full rounded-lg bg-primary py-3 font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
       >
         {loading ? 'Finding your best jobs...' : 'Find my best jobs →'}
       </button>

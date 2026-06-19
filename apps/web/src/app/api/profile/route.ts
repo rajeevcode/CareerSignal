@@ -18,13 +18,13 @@ export async function PUT(request: Request) {
   if (body.notice_period !== undefined) updates.noticePeriod = body.notice_period;
   if (body.visa_status !== undefined) updates.visaStatus = body.visa_status;
   if (body.remote_preference !== undefined) updates.remotePreference = body.remote_preference;
-  if (body.target_roles !== undefined) updates.targetRoles = JSON.stringify(body.target_roles || []);
+  if (body.target_roles !== undefined) updates.targetRoles = body.target_roles || [];
   if (body.profile_summary !== undefined) updates.profileSummary = body.profile_summary;
   if (body.linkedin_url !== undefined) updates.linkedinUrl = body.linkedin_url;
   if (body.github_url !== undefined) updates.githubUrl = body.github_url;
   if (body.portfolio_url !== undefined) updates.portfolioUrl = body.portfolio_url;
 
-  db.update(candidateProfiles).set(updates).where(eq(candidateProfiles.userId, session.userId)).run();
+  await db.update(candidateProfiles).set(updates).where(eq(candidateProfiles.userId, session.userId));
 
   return NextResponse.json({ success: true });
 }

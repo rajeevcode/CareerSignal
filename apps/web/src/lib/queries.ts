@@ -1,8 +1,9 @@
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, inArray } from 'drizzle-orm';
 import {
   getDb,
   jobs,
   companies,
+  profiles,
   candidateProfiles,
   candidateSkills,
   candidateExperience,
@@ -10,37 +11,57 @@ import {
   applications,
   matchScores,
   cvUploads,
+  jobReports,
+  recruiterProfiles,
   mapJob,
   mapCompany,
   mapCandidateProfile,
   mapMatchScore,
+  mapApplication,
   parseJsonArray,
   toIsoNow,
 } from '@careersignal/db';
 import type { JobFilters, ProbabilityMapEntry } from '@careersignal/shared';
 
-export function getCandidateByUserId(userId: string) {
+async function one<T>(query: { then: PromiseLike<T[]>['then'] } | Promise<T[]>): Promise<T | null> {
+  const rows = (await query) as T[];
+  return rows[0] ?? null;
+}
+
+/** Fetch jobs (+company) for a set of ids in ONE query, returned as an id→Job map. */
+async function jobMapForIds(ids: string[]) {
+  const map = new Map<string, ReturnType<typeof mapJob>>();
+  const unique = [...new Set(ids)];
+  if (unique.length === 0) return map;
+  const rows = await getDb()
+    .select({ job: jobs, company: companies })
+    .from(jobs)
+    .innerJoin(companies, eq(jobs.companyId, companies.id))
+    .where(inArray(jobs.id, unique));
+  for (const { job, company } of rows) map.set(job.id, mapJob(job, mapCompany(company)));
+  return map;
+}
+
+export async function getCandidateByUserId(userId: string) {
   const db = getDb();
-  const row = db.select().from(candidateProfiles).where(eq(candidateProfiles.userId, userId)).get();
+  const row = await one(db.select().from(candidateProfiles).where(eq(candidateProfiles.userId, userId)));
   return row ? mapCandidateProfile(row) : null;
 }
 
-export function getCandidateRowByUserId(userId: string) {
+export async function getCandidateRowByUserId(userId: string) {
   const db = getDb();
-  return db.select().from(candidateProfiles).where(eq(candidateProfiles.userId, userId)).get();
+  return one(db.select().from(candidateProfiles).where(eq(candidateProfiles.userId, userId)));
 }
 
-export function listPublishedJobs(filters: JobFilters = {}) {
+export async function listPublishedJobs(filters: JobFilters = {}) {
   const db = getDb();
-  let query = db
+  const rows = await db
     .select({ job: jobs, company: companies })
     .from(jobs)
     .innerJoin(companies, eq(jobs.companyId, companies.id))
     .where(eq(jobs.status, 'published'))
-    .orderBy(desc(jobs.postedAt))
-    .$dynamic();
+    .orderBy(desc(jobs.postedAt));
 
-  const rows = query.all();
   return rows
     .map(({ job, company }) => mapJob(job, mapCompany(company)))
     .filter((job) => {
@@ -57,131 +78,127 @@ export function listPublishedJobs(filters: JobFilters = {}) {
     });
 }
 
-export function getJobById(id: string) {
+export async function getJobById(id: string) {
   const db = getDb();
-  const row = db
-    .select({ job: jobs, company: companies })
-    .from(jobs)
-    .innerJoin(companies, eq(jobs.companyId, companies.id))
-    .where(and(eq(jobs.id, id), eq(jobs.status, 'published')))
-    .get();
+  const row = await one(
+    db
+      .select({ job: jobs, company: companies })
+      .from(jobs)
+      .innerJoin(companies, eq(jobs.companyId, companies.id))
+      .where(and(eq(jobs.id, id), eq(jobs.status, 'published'))),
+  );
   if (!row) return null;
   return mapJob(row.job, mapCompany(row.company));
 }
 
-export function isJobSaved(candidateId: string, jobId: string) {
+export async function isJobSaved(candidateId: string, jobId: string) {
   const db = getDb();
-  return !!db.select().from(savedJobs)
-    .where(and(eq(savedJobs.candidateId, candidateId), eq(savedJobs.jobId, jobId)))
-    .get();
+  const row = await one(
+    db.select().from(savedJobs).where(and(eq(savedJobs.candidateId, candidateId), eq(savedJobs.jobId, jobId))),
+  );
+  return !!row;
 }
 
-export function hasApplied(candidateId: string, jobId: string) {
+export async function hasApplied(candidateId: string, jobId: string) {
   const db = getDb();
-  return !!db.select().from(applications)
-    .where(and(eq(applications.candidateId, candidateId), eq(applications.jobId, jobId)))
-    .get();
+  const row = await one(
+    db.select().from(applications).where(and(eq(applications.candidateId, candidateId), eq(applications.jobId, jobId))),
+  );
+  return !!row;
 }
 
-export function getMatchScore(candidateId: string, jobId: string) {
+export async function getMatchScore(candidateId: string, jobId: string) {
   const db = getDb();
-  const row = db.select().from(matchScores)
-    .where(and(eq(matchScores.candidateId, candidateId), eq(matchScores.jobId, jobId)))
-    .get();
+  const row = await one(
+    db.select().from(matchScores).where(and(eq(matchScores.candidateId, candidateId), eq(matchScores.jobId, jobId))),
+  );
   return row ? mapMatchScore(row) : null;
 }
 
-export function listMatchScoresForCandidate(candidateId: string) {
+export async function listMatchScoresForCandidate(candidateId: string) {
   const db = getDb();
-  const rows = db.select().from(matchScores)
+  const rows = await db
+    .select()
+    .from(matchScores)
     .where(eq(matchScores.candidateId, candidateId))
-    .orderBy(desc(matchScores.finalScore))
-    .all();
+    .orderBy(desc(matchScores.finalScore));
 
-  return rows.map((row) => {
-    const jobRow = db
-      .select({ job: jobs, company: companies })
-      .from(jobs)
-      .innerJoin(companies, eq(jobs.companyId, companies.id))
-      .where(eq(jobs.id, row.jobId))
-      .get();
-    const job = jobRow ? mapJob(jobRow.job, mapCompany(jobRow.company)) : undefined;
-    return mapMatchScore(row, job);
-  });
+  const jobs_ = await jobMapForIds(rows.map((r) => r.jobId));
+  return rows.map((row) => mapMatchScore(row, jobs_.get(row.jobId)));
 }
 
-export function countMatchScores(candidateId: string, minScore?: number) {
+export async function countMatchScores(candidateId: string, minScore?: number) {
   const db = getDb();
-  const rows = db.select().from(matchScores).where(eq(matchScores.candidateId, candidateId)).all();
+  const rows = await db.select().from(matchScores).where(eq(matchScores.candidateId, candidateId));
   if (minScore == null) return rows.length;
   return rows.filter((r) => r.finalScore >= minScore).length;
 }
 
-export function countApplications(candidateId: string) {
+export async function countApplications(candidateId: string) {
   const db = getDb();
-  return db.select().from(applications).where(eq(applications.candidateId, candidateId)).all().length;
+  const rows = await db.select().from(applications).where(eq(applications.candidateId, candidateId));
+  return rows.length;
 }
 
-export function listSavedJobs(candidateId: string) {
+export async function listSavedJobs(candidateId: string) {
   const db = getDb();
-  const rows = db.select().from(savedJobs)
+  const rows = await db
+    .select()
+    .from(savedJobs)
     .where(eq(savedJobs.candidateId, candidateId))
-    .orderBy(desc(savedJobs.createdAt))
-    .all();
+    .orderBy(desc(savedJobs.createdAt));
 
-  return rows.map((saved) => {
-    const jobRow = db
-      .select({ job: jobs, company: companies })
-      .from(jobs)
-      .innerJoin(companies, eq(jobs.companyId, companies.id))
-      .where(eq(jobs.id, saved.jobId))
-      .get();
-    return jobRow ? mapJob(jobRow.job, mapCompany(jobRow.company)) : null;
-  }).filter(Boolean);
+  const jobs_ = await jobMapForIds(rows.map((r) => r.jobId));
+  // Preserve saved-order (rows are ordered by createdAt desc); drop any missing jobs.
+  return rows.map((saved) => jobs_.get(saved.jobId)).filter((j): j is NonNullable<typeof j> => j != null);
 }
 
-export function listApplications(candidateId: string) {
+export async function listApplications(candidateId: string) {
   const db = getDb();
-  return db.select().from(applications)
+  return db
+    .select()
+    .from(applications)
     .where(eq(applications.candidateId, candidateId))
-    .orderBy(desc(applications.appliedAt))
-    .all();
+    .orderBy(desc(applications.appliedAt));
 }
 
-export function listCvUploads(candidateId: string) {
+export async function listCvUploads(candidateId: string) {
   const db = getDb();
-  return db.select().from(cvUploads)
+  return db
+    .select()
+    .from(cvUploads)
     .where(eq(cvUploads.candidateId, candidateId))
-    .orderBy(desc(cvUploads.uploadedAt))
-    .all();
+    .orderBy(desc(cvUploads.uploadedAt));
 }
 
-export function listAllJobs() {
+export async function listAllJobs() {
   const db = getDb();
-  return db.select({ job: jobs, company: companies })
+  const rows = await db
+    .select({ job: jobs, company: companies })
     .from(jobs)
     .innerJoin(companies, eq(jobs.companyId, companies.id))
-    .orderBy(desc(jobs.createdAt))
-    .all()
-    .map(({ job, company }) => mapJob(job, mapCompany(company)));
+    .orderBy(desc(jobs.createdAt));
+  return rows.map(({ job, company }) => mapJob(job, mapCompany(company)));
 }
 
-export function listCompanies() {
+export async function listCompanies() {
   const db = getDb();
-  return db.select().from(companies).orderBy(companies.name).all().map(mapCompany);
+  const rows = await db.select().from(companies).orderBy(companies.name);
+  return rows.map(mapCompany);
 }
 
-export function listCandidateSkills(candidateId: string) {
+export async function listCandidateSkills(candidateId: string) {
   const db = getDb();
-  return db.select().from(candidateSkills).where(eq(candidateSkills.candidateId, candidateId)).all();
+  return db.select().from(candidateSkills).where(eq(candidateSkills.candidateId, candidateId));
 }
 
-export function listCandidateExperience(candidateId: string) {
+export async function listCandidateExperience(candidateId: string) {
   const db = getDb();
-  return db.select().from(candidateExperience)
+  return db
+    .select()
+    .from(candidateExperience)
     .where(eq(candidateExperience.candidateId, candidateId))
-    .orderBy(candidateExperience.sortOrder)
-    .all();
+    .orderBy(candidateExperience.sortOrder);
 }
 
 function roleMatchesJobTitle(role: string, jobTitle: string): boolean {
@@ -192,12 +209,12 @@ function roleMatchesJobTitle(role: string, jobTitle: string): boolean {
   return matched.length >= Math.min(2, roleTokens.length);
 }
 
-export function getProbabilityMapByCategory(candidateId: string): ProbabilityMapEntry[] {
+export async function getProbabilityMapByCategory(candidateId: string): Promise<ProbabilityMapEntry[]> {
   const db = getDb();
-  const candidate = db.select().from(candidateProfiles).where(eq(candidateProfiles.id, candidateId)).get();
+  const candidate = await one(db.select().from(candidateProfiles).where(eq(candidateProfiles.id, candidateId)));
   if (!candidate) return [];
 
-  const matches = listMatchScoresForCandidate(candidateId).filter((m) => m.job);
+  const matches = (await listMatchScoresForCandidate(candidateId)).filter((m) => m.job);
   if (matches.length === 0) return [];
 
   const targetRoles = parseJsonArray<string>(candidate.targetRoles);
@@ -208,12 +225,7 @@ export function getProbabilityMapByCategory(candidateId: string): ProbabilityMap
       const roleMatches = matches.filter((m) => m.job && roleMatchesJobTitle(role, m.job!.title));
       if (roleMatches.length === 0) continue;
       const avg = roleMatches.reduce((sum, m) => sum + m.final_score, 0) / roleMatches.length;
-      entries.push({
-        label: role,
-        avg_score: Math.round(avg),
-        job_count: roleMatches.length,
-        source: 'target_role',
-      });
+      entries.push({ label: role, avg_score: Math.round(avg), job_count: roleMatches.length, source: 'target_role' });
     }
     if (entries.length > 0) {
       return entries.sort((a, b) => b.avg_score - a.avg_score).slice(0, 6);
@@ -240,10 +252,142 @@ export function getProbabilityMapByCategory(candidateId: string): ProbabilityMap
     .slice(0, 6);
 }
 
-export function setOnboardingStep(userId: string, step: number) {
+export async function setOnboardingStep(userId: string, step: number) {
   const db = getDb();
-  db.update(candidateProfiles).set({
-    onboardingStep: step,
-    updatedAt: toIsoNow(),
-  }).where(eq(candidateProfiles.userId, userId)).run();
+  await db
+    .update(candidateProfiles)
+    .set({ onboardingStep: step, updatedAt: toIsoNow() })
+    .where(eq(candidateProfiles.userId, userId));
+}
+
+export async function getRecruiterProfile(userId: string) {
+  const db = getDb();
+  const row = await one(db.select().from(recruiterProfiles).where(eq(recruiterProfiles.userId, userId)));
+  if (!row) return null;
+  const company = row.companyId
+    ? await one(db.select().from(companies).where(eq(companies.id, row.companyId)))
+    : null;
+  return { ...row, company: company ? mapCompany(company) : null };
+}
+
+export async function listRecruiterJobs(recruiterId: string) {
+  const db = getDb();
+  const rows = await db
+    .select({ job: jobs, company: companies })
+    .from(jobs)
+    .innerJoin(companies, eq(jobs.companyId, companies.id))
+    .where(eq(jobs.recruiterId, recruiterId))
+    .orderBy(desc(jobs.createdAt));
+  return rows.map(({ job, company }) => mapJob(job, mapCompany(company)));
+}
+
+export async function getRecruiterJob(recruiterId: string, jobId: string) {
+  const db = getDb();
+  const row = await one(
+    db
+      .select({ job: jobs, company: companies })
+      .from(jobs)
+      .innerJoin(companies, eq(jobs.companyId, companies.id))
+      .where(and(eq(jobs.id, jobId), eq(jobs.recruiterId, recruiterId))),
+  );
+  if (!row) return null;
+  return mapJob(row.job, mapCompany(row.company));
+}
+
+export async function listJobApplicants(jobId: string) {
+  const db = getDb();
+  // Single query: applications joined to the candidate and its profile.
+  const rows = await db
+    .select({ app: applications, candidate: candidateProfiles, profile: profiles })
+    .from(applications)
+    .leftJoin(candidateProfiles, eq(candidateProfiles.id, applications.candidateId))
+    .leftJoin(profiles, eq(profiles.id, candidateProfiles.userId))
+    .where(eq(applications.jobId, jobId))
+    .orderBy(desc(applications.appliedAt));
+
+  return rows.map(({ app, candidate, profile }) => ({
+    ...mapApplication(app),
+    candidate_name: profile?.fullName || 'Candidate',
+    candidate_title: candidate?.currentTitle || null,
+    match_score: app.matchScore,
+  }));
+}
+
+export async function countRecruiterApplicants(recruiterId: string) {
+  const db = getDb();
+  const recruiterJobs = await db.select({ id: jobs.id }).from(jobs).where(eq(jobs.recruiterId, recruiterId));
+  if (recruiterJobs.length === 0) return 0;
+  const rows = await db
+    .select({ id: applications.id })
+    .from(applications)
+    .where(inArray(applications.jobId, recruiterJobs.map((j) => j.id)));
+  return rows.length;
+}
+
+export async function countRecruiterShortlisted(recruiterId: string) {
+  const db = getDb();
+  const recruiterJobs = await db.select({ id: jobs.id }).from(jobs).where(eq(jobs.recruiterId, recruiterId));
+  if (recruiterJobs.length === 0) return 0;
+  const rows = await db
+    .select({ id: applications.id })
+    .from(applications)
+    .where(
+      and(
+        inArray(applications.jobId, recruiterJobs.map((j) => j.id)),
+        inArray(applications.status, ['shortlisted', 'hr_screen']),
+      ),
+    );
+  return rows.length;
+}
+
+export async function listUnverifiedCompanies() {
+  const db = getDb();
+  const rows = await db.select().from(companies).where(eq(companies.verified, false)).orderBy(companies.name);
+  return rows.map(mapCompany);
+}
+
+export async function listOpenJobReports() {
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(jobReports)
+    .where(eq(jobReports.status, 'open'))
+    .orderBy(desc(jobReports.createdAt));
+
+  const out = [];
+  for (const report of rows) {
+    const jobRow = await one(
+      db
+        .select({ job: jobs, company: companies })
+        .from(jobs)
+        .innerJoin(companies, eq(jobs.companyId, companies.id))
+        .where(eq(jobs.id, report.jobId)),
+    );
+    out.push({
+      id: report.id,
+      reason: report.reason,
+      status: report.status,
+      created_at: report.createdAt,
+      job: jobRow ? mapJob(jobRow.job, mapCompany(jobRow.company)) : null,
+    });
+  }
+  return out;
+}
+
+export async function getAdminTrustStats() {
+  const db = getDb();
+  const [allCompanies, allJobs, openReports] = await Promise.all([
+    db.select().from(companies),
+    db.select().from(jobs),
+    db.select().from(jobReports).where(eq(jobReports.status, 'open')),
+  ]);
+
+  return {
+    unverifiedCompanies: allCompanies.filter((c) => !c.verified).length,
+    verifiedCompanies: allCompanies.filter((c) => c.verified).length,
+    publishedJobs: allJobs.filter((j) => j.status === 'published').length,
+    highRiskJobs: allJobs.filter((j) => j.scamRisk === 'high').length,
+    openReports: openReports.length,
+    totalJobs: allJobs.length,
+  };
 }

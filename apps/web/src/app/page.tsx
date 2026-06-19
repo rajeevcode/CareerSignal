@@ -1,205 +1,397 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowRight, Shield, Sparkles, Target, TrendingUp, Upload, Zap } from 'lucide-react';
+import { HeroDashboardPreview } from '@/components/cs/HeroDashboardPreview';
+import { ScoreRing } from '@/components/cs/ScoreRing';
+import { SignalBadge, MatchBadge } from '@/components/cs/SignalBadge';
+import {
+  ArrowRight,
+  FileText,
+  Gauge,
+  Target,
+  Sparkles,
+  Briefcase,
+  ListChecks,
+  MessagesSquare,
+  Compass,
+  Shield,
+  CheckCircle2,
+  Upload,
+  Search,
+  TrendingUp,
+  Building2,
+  MapPin,
+} from 'lucide-react';
+
+export const metadata: Metadata = {
+  title: 'CareerSignal — Stop applying blindly. Know your interview signal.',
+  description:
+    'AI career operating system: ATS-ready CV, JD match scoring, shortlisting probability, smart job search, and interview prep — all in one place.',
+  openGraph: {
+    title: 'CareerSignal — AI career operating system',
+    description: 'Build your CV. Match any job. Know your interview signal.',
+  },
+};
+
+const btnPrimary =
+  'inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary-hover';
+const btnOutline =
+  'inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-border bg-card px-5 text-sm font-semibold text-foreground transition-colors hover:bg-muted';
 
 export default function HomePage() {
   return (
-    <div>
-      {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-slate-50 via-white to-indigo-50/30 py-16 lg:py-24">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          <div className="grid items-center gap-12 lg:grid-cols-2">
-            <div>
-              <p className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-800">
-                <Sparkles className="h-3.5 w-3.5" />
-                AI career intelligence platform
-              </p>
-              <h1 className="mt-6 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
-                Build your CV. Match any job. Know your interview signal.
-              </h1>
-              <p className="mt-4 text-lg text-slate-600">
-                CareerSignal scores your CV, matches it against any job description, and shows where you have the strongest shortlisting signal — before you apply.
-              </p>
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Link
-                  href="/register"
-                  className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-indigo-200 hover:bg-indigo-700"
-                >
-                  <Upload className="h-5 w-5" />
-                  Upload CV and Get Your Score
-                </Link>
-                <Link
-                  href="/jd-match"
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-6 py-3 text-base font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  Paste Job Description
-                </Link>
-              </div>
-            </div>
+    <>
+      <Hero />
+      <Problem />
+      <Modules />
+      <Journey />
+      <SampleMatch />
+      <RecruiterStrip />
+      <Trust />
+      <FinalCTA />
+    </>
+  );
+}
 
-            {/* Hero visual */}
-            <div className="relative">
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xl shadow-slate-200/50">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Your profile</p>
-                <p className="mt-1 font-semibold text-slate-900">Senior AI Product Manager</p>
-                <p className="text-sm text-slate-500">CV Score: 78/100</p>
-                <div className="mt-4 space-y-3">
-                  <HeroJobCard
-                    title="Senior AI Product Manager"
-                    company="ExampleTech"
-                    match={86}
-                    missing="B2B SaaS, Salesforce"
-                    high
-                  />
-                  <HeroJobCard
-                    title="Technical Product Manager"
-                    company="DataFlow"
-                    match={76}
-                    missing="Enterprise SaaS"
-                  />
-                  <HeroJobCard
-                    title="Data Product Manager"
-                    company="MarketHub"
-                    match={68}
-                    missing="SQL depth"
-                    low
-                  />
-                </div>
-              </div>
-            </div>
+function Hero() {
+  return (
+    <section className="relative flex items-center overflow-hidden lg:min-h-[calc(100vh-3.75rem)]">
+      <div
+        aria-hidden
+        className="absolute inset-0 -z-10"
+        style={{
+          background:
+            'radial-gradient(60% 50% at 50% 0%, color-mix(in oklab, var(--primary-glow) 18%, transparent) 0%, transparent 70%)',
+        }}
+      />
+      <div className="mx-auto grid w-full max-w-6xl items-center gap-12 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:gap-16 lg:py-20">
+        <div className="max-w-xl">
+          <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm">
+            <Sparkles className="h-3.5 w-3.5 text-primary" />
+            AI career operating system
+          </div>
+          <h1 className="text-4xl font-bold leading-[1.02] tracking-tight text-foreground sm:text-5xl lg:text-6xl">
+            Stop applying blindly.
+            <br />
+            <span className="text-primary">Know your interview signal</span> before you apply.
+          </h1>
+          <p className="mt-6 max-w-lg text-base leading-relaxed text-muted-foreground sm:text-lg">
+            CareerSignal helps you build an ATS-ready CV, match it against any job description, discover high-fit
+            roles, and manage your job search from application to interview.
+          </p>
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <Link href="/register" className={btnPrimary}>
+              <Upload className="h-4 w-4" />
+              Upload CV and get your score
+            </Link>
+            <Link href="/jd-match" className={btnOutline}>
+              Paste a job description
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+          <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+              ATS-ready CV
+            </span>
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+              Explainable scores
+            </span>
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+              Verified companies
+            </span>
           </div>
         </div>
-      </section>
 
-      {/* Problem */}
-      <section className="border-y border-slate-100 bg-white py-16">
-        <div className="mx-auto max-w-3xl px-4 text-center sm:px-6">
-          <h2 className="text-2xl font-bold text-slate-900">Most job boards show too many jobs and too little clarity</h2>
-          <p className="mt-4 text-slate-600">
-            Candidates don&apos;t know why they&apos;re rejected, which jobs truly fit, whether their CV matches the JD, which skills are missing, or whether location, visa, seniority, or competition is the issue.
+        <div className="flex w-full justify-center lg:justify-end">
+          <div className="w-full max-w-[560px]">
+            <HeroDashboardPreview />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Problem() {
+  return (
+    <section className="border-y border-border bg-secondary/40">
+      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-16 sm:px-6 md:grid-cols-2">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">The problem</div>
+          <h2 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+            Job boards show thousands of roles. None of them tell you where you actually have a chance.
+          </h2>
+          <p className="mt-4 text-base text-muted-foreground">
+            You scroll. You apply. You wait. There&apos;s no signal — only volume. CareerSignal ranks opportunities
+            by <strong className="text-foreground">fit</strong>, <strong className="text-foreground">CV readiness</strong>,
+            and <strong className="text-foreground">estimated shortlisting probability</strong>, so every application
+            has a reason to exist.
           </p>
         </div>
-      </section>
-
-      {/* Solution */}
-      <section className="py-16">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          <div className="text-center">
-            <h2 className="text-3xl font-bold text-slate-900">CareerSignal ranks jobs by your interview signal</h2>
-            <p className="mx-auto mt-3 max-w-2xl text-slate-600">Every role shows opportunity quality — not just a listing.</p>
-          </div>
-          <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {[
-              'Profile fit score',
-              'Interview probability',
-              'ATS & keyword gap',
-              'Experience & seniority match',
-              'Location & visa fit',
-              'Competition level',
-            ].map((item) => (
-              <div key={item} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4">
-                <Target className="h-5 w-5 shrink-0 text-indigo-600" />
-                <span className="text-sm font-medium text-slate-800">{item}</span>
-              </div>
-            ))}
-          </div>
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            { k: 'Hours wasted weekly', v: '12+' },
+            { k: 'Low-fit applications', v: '73%' },
+            { k: 'Avg. response rate', v: '<5%' },
+            { k: 'Reasons given', v: '0' },
+          ].map((s) => (
+            <div key={s.k} className="rounded-xl border border-border bg-card p-5 shadow-[var(--shadow-card)]">
+              <div className="text-3xl font-bold tracking-tight text-foreground">{s.v}</div>
+              <div className="mt-1 text-xs text-muted-foreground">{s.k}</div>
+            </div>
+          ))}
         </div>
-      </section>
+      </div>
+    </section>
+  );
+}
 
-      {/* Candidate flow */}
-      <section className="bg-slate-900 py-16 text-white">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          <h2 className="text-center text-2xl font-bold">Your career dashboard</h2>
-          <div className="mt-10 flex flex-wrap justify-center gap-4 text-sm">
-            {['Upload CV', 'CV Score', 'JD Match', 'Interview Signal', 'Improve CV', 'Apply & track'].map((step, i, arr) => (
-              <div key={step} className="flex items-center gap-2">
-                <span className="rounded-lg bg-white/10 px-4 py-2 font-medium">{step}</span>
-                {i < arr.length - 1 && <ArrowRight className="h-4 w-4 text-slate-500" />}
-              </div>
-            ))}
+const modules = [
+  { icon: FileText, name: 'AI CV Builder', desc: 'Section-by-section editor with live AI feedback and role-specific versions.' },
+  { icon: Gauge, name: 'CV Score', desc: 'VMock-style breakdown across ATS, impact, keywords, seniority and clarity.' },
+  { icon: Target, name: 'JD Match Analyzer', desc: 'Paste any JD and see your match, gaps, and estimated shortlisting probability.' },
+  { icon: TrendingUp, name: 'Interview Signal', desc: 'Know whether a role is a Strong, Moderate, or Weak signal — before applying.' },
+  { icon: Search, name: 'Smart Job Search', desc: 'A personalized opportunity feed, ranked by fit and competition — not noise.' },
+  { icon: ListChecks, name: 'Application Tracker', desc: 'Board, table, calendar and analytics views with smart follow-up reminders.' },
+  { icon: MessagesSquare, name: 'Interview Prep', desc: 'Role-specific question bank, STAR builder, and 30-60-90 day plans.' },
+  { icon: Compass, name: 'Career Coach', desc: 'An action-oriented AI assistant that plans, rewrites, and prepares with you.' },
+];
+
+function Modules() {
+  return (
+    <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+      <div className="mx-auto max-w-2xl text-center">
+        <div className="text-xs font-semibold uppercase tracking-wider text-primary">Modules</div>
+        <h2 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+          One workspace for your entire job search
+        </h2>
+        <p className="mt-3 text-base text-muted-foreground">
+          Eight tightly integrated modules — built around a single repeated loop: build, match, improve, apply,
+          prepare, learn.
+        </p>
+      </div>
+
+      <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {modules.map((m) => (
+          <div
+            key={m.name}
+            className="group rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-card)] transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-[var(--shadow-elegant)]"
+          >
+            <div className="grid h-10 w-10 place-items-center rounded-lg bg-accent text-accent-foreground transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
+              <m.icon className="h-5 w-5" />
+            </div>
+            <h3 className="mt-4 text-base font-semibold text-foreground">{m.name}</h3>
+            <p className="mt-1.5 text-sm text-muted-foreground">{m.desc}</p>
           </div>
-          <ul className="mx-auto mt-10 grid max-w-3xl gap-3 sm:grid-cols-2">
-            {['Best-fit jobs ranked daily', 'Interview probability per role', 'CV gap analysis before applying', 'Application tracker & follow-ups'].map((f) => (
-              <li key={f} className="flex items-center gap-2 text-slate-300">
-                <Zap className="h-4 w-4 text-indigo-400" />
-                {f}
+        ))}
+      </div>
+    </section>
+  );
+}
+
+const journeySteps = ['Upload CV', 'Get Score', 'Match JD', 'Improve CV', 'Apply', 'Track', 'Prepare'];
+
+function Journey() {
+  return (
+    <section className="border-y border-border bg-secondary/40">
+      <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+        <div className="mx-auto max-w-2xl text-center">
+          <div className="text-xs font-semibold uppercase tracking-wider text-primary">The candidate journey</div>
+          <h2 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+            A repeated improvement loop, not a one-time scan
+          </h2>
+        </div>
+
+        <div className="mt-10 overflow-x-auto">
+          <ol className="mx-auto flex min-w-max items-center justify-center gap-2 sm:gap-3">
+            {journeySteps.map((step, i) => (
+              <li key={step} className="flex items-center gap-2 sm:gap-3">
+                <div className="flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 shadow-sm">
+                  <span className="grid h-6 w-6 place-items-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
+                    {i + 1}
+                  </span>
+                  <span className="text-sm font-medium text-foreground">{step}</span>
+                </div>
+                {i < journeySteps.length - 1 && <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SampleMatch() {
+  const subs = [
+    { label: 'Skills', val: 88 },
+    { label: 'Experience', val: 81 },
+    { label: 'Domain', val: 76 },
+    { label: 'Seniority', val: 85 },
+  ];
+  return (
+    <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+      <div className="grid items-center gap-10 lg:grid-cols-2">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wider text-primary">Sample match</div>
+          <h2 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+            Every job tells you why it fits and what&apos;s missing
+          </h2>
+          <p className="mt-3 text-base text-muted-foreground">
+            We never say &quot;guaranteed interview.&quot; We surface an{' '}
+            <strong className="text-foreground">estimated shortlisting probability</strong> and a{' '}
+            <strong className="text-foreground">qualitative interview signal</strong> — paired with the exact gaps to
+            close.
+          </p>
+          <ul className="mt-5 space-y-2.5 text-sm">
+            {[
+              'Why you match — strengths the AI picked from your CV',
+              'Why you may not be shortlisted — concrete gaps to address',
+              'Missing keywords you can truthfully add',
+              'Next actions: rewrite, reorder, or improve specific bullets',
+            ].map((s) => (
+              <li key={s} className="flex items-start gap-2">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+                <span className="text-foreground/90">{s}</span>
               </li>
             ))}
           </ul>
         </div>
-      </section>
 
-      {/* Recruiter + Trust */}
-      <section className="py-16">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6">
-          <div className="grid gap-8 md:grid-cols-2">
-            <div className="rounded-2xl border border-slate-200 bg-white p-8">
-              <TrendingUp className="h-8 w-8 text-indigo-600" />
-              <h3 className="mt-4 text-xl font-bold text-slate-900">Shortlist better candidates faster</h3>
-              <p className="mt-2 text-slate-600">
-                Use AI to rank applicants by fit, readiness, location, salary, and availability — fewer irrelevant applications, better interview-ready candidates.
-              </p>
-              <Link href="/for-employers" className="mt-6 inline-block text-sm font-semibold text-indigo-600 hover:underline">
-                For Employers →
-              </Link>
+        <div className="rounded-2xl border border-border bg-card p-6 shadow-[var(--shadow-elegant)]">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-xs font-medium text-muted-foreground">BerlinTech AI · Berlin / Remote EU</div>
+              <h3 className="mt-1 text-lg font-semibold text-foreground">Senior AI Product Manager</h3>
+              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <Building2 className="h-3 w-3" /> Verified
+                </span>
+                <span className="flex items-center gap-1">
+                  <MapPin className="h-3 w-3" /> Hybrid
+                </span>
+                <span>€80K–€105K</span>
+              </div>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-8">
-              <Shield className="h-8 w-8 text-emerald-600" />
-              <h3 className="mt-4 text-xl font-bold text-slate-900">Verified jobs. Better matches. Less spam.</h3>
-              <p className="mt-2 text-slate-600">
-                Every job and company goes through quality checks to reduce fake listings, scam roles, and irrelevant applications. Trust matters — especially in India.
-              </p>
+            <div className="flex items-center gap-2">
+              <MatchBadge value={86} />
+              <SignalBadge signal="Strong" />
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* CTA */}
-      <section className="bg-indigo-600 py-16">
-        <div className="mx-auto max-w-7xl px-4 text-center sm:px-6">
-          <h2 className="text-3xl font-bold text-white">Apply where your profile has the strongest signal</h2>
-          <p className="mt-3 text-indigo-100">Stop applying blindly. Apply smarter.</p>
-          <Link
-            href="/register"
-            className="mt-8 inline-block rounded-xl bg-white px-8 py-3 font-semibold text-indigo-600 hover:bg-indigo-50"
-          >
-            Upload CV and Get Your Score
+          <div className="mt-5 flex items-center gap-5">
+            <ScoreRing value={86} size={92} strokeWidth={9} label="Match" tone="success" />
+            <div className="flex-1 space-y-2">
+              {subs.map((s) => (
+                <div key={s.label} className="grid grid-cols-[80px_1fr_32px] items-center gap-2">
+                  <div className="text-xs text-muted-foreground">{s.label}</div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                    <div className="h-full rounded-full bg-primary" style={{ width: `${s.val}%` }} />
+                  </div>
+                  <div className="text-right text-xs font-medium text-foreground">{s.val}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-5 rounded-lg bg-warning-soft p-3.5 text-sm text-warning-foreground">
+            <div className="text-xs font-semibold uppercase tracking-wider opacity-80">Missing</div>
+            <div className="mt-1">Enterprise SaaS depth · German language preferred</div>
+          </div>
+
+          <Link href="/cv" className={`${btnPrimary} mt-5 w-full`}>
+            <Sparkles className="h-4 w-4" />
+            Improve CV for this job
           </Link>
         </div>
-      </section>
-    </div>
+      </div>
+    </section>
   );
 }
 
-function HeroJobCard({
-  title,
-  company,
-  match,
-  missing,
-  high,
-  low,
-}: {
-  title: string;
-  company: string;
-  match: number;
-  missing: string;
-  high?: boolean;
-  low?: boolean;
-}) {
+function RecruiterStrip() {
   return (
-    <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
-      <div className="flex items-start justify-between gap-2">
+    <section className="bg-primary text-primary-foreground">
+      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-14 sm:px-6 md:grid-cols-[2fr_1fr] md:items-center">
         <div>
-          <p className="font-semibold text-slate-900">{title}</p>
-          <p className="text-xs text-slate-500">{company}</p>
+          <div className="text-xs font-semibold uppercase tracking-wider text-primary-foreground/70">
+            For recruiters
+          </div>
+          <h2 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">
+            Shortlist better candidates. Cut irrelevant applications.
+          </h2>
+          <p className="mt-2 max-w-xl text-sm text-primary-foreground/80 sm:text-base">
+            Post jobs, improve your JD quality score, and rank candidates by role fit and interview readiness — not by
+            keyword spam.
+          </p>
         </div>
-        <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-          high ? 'bg-emerald-100 text-emerald-800' : low ? 'bg-slate-200 text-slate-600' : 'bg-amber-100 text-amber-800'
-        }`}>
-          {match}%
-        </span>
+        <div className="flex md:justify-end">
+          <Link
+            href="/for-recruiters"
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-card px-5 text-sm font-semibold text-foreground transition-colors hover:bg-muted"
+          >
+            Explore recruiter tools
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
       </div>
-      <p className="mt-2 text-xs text-amber-700">Missing: {missing}</p>
-      <p className="mt-1 text-xs font-medium text-indigo-600">→ Improve CV</p>
-    </div>
+    </section>
+  );
+}
+
+const trustItems = [
+  { icon: Shield, title: 'Verified companies', desc: 'Every employer goes through trust review.' },
+  { icon: CheckCircle2, title: 'Scam detection', desc: 'AI flags suspicious postings before you see them.' },
+  { icon: Briefcase, title: 'Salary transparency', desc: 'Salary ranges encouraged on every role.' },
+  { icon: Sparkles, title: 'Candidate privacy', desc: 'You decide what recruiters can see, and when.' },
+];
+
+function Trust() {
+  return (
+    <section className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+      <div className="mx-auto max-w-2xl text-center">
+        <div className="text-xs font-semibold uppercase tracking-wider text-primary">Trust</div>
+        <h2 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Calm. Verified. Credible.</h2>
+        <p className="mt-3 text-base text-muted-foreground">
+          Trust is a product feature, not a footer. Especially across India, the EU and the Gulf.
+        </p>
+      </div>
+      <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {trustItems.map((t) => (
+          <div key={t.title} className="rounded-2xl border border-border bg-card p-5">
+            <div className="grid h-9 w-9 place-items-center rounded-lg bg-success-soft text-success">
+              <t.icon className="h-4 w-4" />
+            </div>
+            <div className="mt-3 text-sm font-semibold text-foreground">{t.title}</div>
+            <div className="mt-1 text-sm text-muted-foreground">{t.desc}</div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function FinalCTA() {
+  return (
+    <section className="mx-auto max-w-6xl px-4 pb-20 sm:px-6">
+      <div className="overflow-hidden rounded-3xl border border-border bg-card p-10 text-center shadow-[var(--shadow-elegant)] sm:p-14">
+        <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+          Build your CV. Match any job.
+          <br className="hidden sm:block" />
+          <span className="text-primary"> Know your interview signal.</span>
+        </h2>
+        <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <Link href="/register" className={`${btnPrimary} px-6`}>
+            Start free
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+          <Link href="/pricing" className={`${btnOutline} px-6`}>
+            See pricing
+          </Link>
+        </div>
+      </div>
+    </section>
   );
 }

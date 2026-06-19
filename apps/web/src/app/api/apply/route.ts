@@ -12,45 +12,55 @@ import {
 import { getSession, getCurrentUser } from '@/lib/auth/session';
 import { sendApplicationConfirmationEmail } from '@/lib/email';
 import { getCandidateRowByUserId, getMatchScore } from '@/lib/queries';
+import { getPlanStateForUser, gate, paywallBody } from '@/lib/access';
 
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { job_id } = await request.json();
-  const candidate = getCandidateRowByUserId(session.userId);
+  const candidate = await getCandidateRowByUserId(session.userId);
   if (!candidate) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
 
   const db = getDb();
-  const jobRow = db
+  const jobRow = (await db
     .select({ job: jobs, company: companies })
     .from(jobs)
     .innerJoin(companies, eq(jobs.companyId, companies.id))
     .where(eq(jobs.id, job_id))
-    .get();
+    .limit(1))[0];
 
   if (!jobRow) {
     return NextResponse.json({ error: 'Job not found' }, { status: 404 });
   }
 
-  const cv = db.select().from(cvUploads)
+  const cv = (await db.select().from(cvUploads)
     .where(and(eq(cvUploads.candidateId, candidate.id), eq(cvUploads.isPrimary, true)))
-    .get();
+    .limit(1))[0];
 
-  const match = getMatchScore(candidate.id, job_id);
+  const match = await getMatchScore(candidate.id, job_id);
   const now = toIsoNow();
   const interviewSignal = match?.interview_signal ?? match?.final_score ?? null;
 
-  const existing = db.select().from(applications)
+  const existing = (await db.select().from(applications)
     .where(and(eq(applications.candidateId, candidate.id), eq(applications.jobId, job_id)))
-    .get();
+    .limit(1))[0];
 
   const isNewApplication = !existing;
 
+  // Free plan caps the number of tracked applications. Re-applying to a job you
+  // already track is always allowed (it doesn't add a row).
+  if (isNewApplication) {
+    const trackGate = gate(await getPlanStateForUser(session.userId), 'track_application');
+    if (!trackGate.allowed) {
+      return NextResponse.json(paywallBody(trackGate), { status: 402 });
+    }
+  }
+
   if (existing) {
-    db.update(applications).set({ status: 'applied', updatedAt: now }).where(eq(applications.id, existing.id)).run();
+    await db.update(applications).set({ status: 'applied', updatedAt: now }).where(eq(applications.id, existing.id));
   } else {
-    db.insert(applications).values({
+    await db.insert(applications).values({
       id: newId(),
       candidateId: candidate.id,
       jobId: job_id,
@@ -58,14 +68,15 @@ export async function POST(request: Request) {
       cvVersionId: cv?.id ?? null,
       matchScore: match?.final_score ?? null,
       interviewProbability: interviewSignal,
+      followUpDueAt: new Date(Date.now() + 7 * 86400000).toISOString(),
+      nextAction: 'Follow up if no response in 7 days',
       appliedAt: now,
       updatedAt: now,
-    }).run();
+    });
 
-    db.update(jobs)
+    await db.update(jobs)
       .set({ applicantCount: (jobRow.job.applicantCount || 0) + 1 })
-      .where(eq(jobs.id, job_id))
-      .run();
+      .where(eq(jobs.id, job_id));
   }
 
   let emailSent = false;

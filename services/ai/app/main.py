@@ -5,16 +5,22 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from app.analyzer.cv_job_analyzer import analyze_cv_job_gap, parse_job_description
+from app.analyzer.cv_job_analyzer import (
+    analyze_cv_job_gap,
+    parse_job_description,
+    rewrite_single_bullet,
+)
+from app.coach.chat import coach_chat
 from app.config import settings
 from app import db as sqlite_db
+from app.interview_prep.generator import generate_interview_prep
 from app.matching.engine import (
     categorize_match,
     compute_match_breakdown,
     generate_embedding,
     generate_explanation,
 )
-from app.parser.cv_parser import parse_cv
+from app.parser.cv_parser import ALLOWED_CV_EXTENSIONS, UnsupportedFileType, parse_cv
 from app.scoring.cv_score_engine import compute_cv_score_breakdown
 from app.scoring.interview_signal_engine import compute_interview_signal, merge_match_result
 from app.scoring.jd_match_engine import compute_jd_match_breakdown, job_dict_from_jd_text
@@ -38,6 +44,59 @@ class MatchRequest(BaseModel):
 class GapAnalysisRequest(BaseModel):
     candidate_id: str
     job_id: str
+    role_style: str = "ai_product_manager"
+
+
+class RewriteBulletRequest(BaseModel):
+    bullet: str
+    job_id: str | None = None
+    job_title: str | None = None
+    required_skills: list[str] = []
+    role_style: str = "ai_product_manager"
+    mode: str = "regenerate"
+
+
+class AtsCheckRequest(BaseModel):
+    candidate_id: str
+    jd_text: str | None = None
+    target_role: str | None = None
+
+
+class CoverLetterRequest(BaseModel):
+    candidate_id: str
+    jd_text: str | None = None
+    job_id: str | None = None
+    job_title: str | None = None
+    company_name: str | None = None
+    tone: str = "warm"
+
+
+class InterviewStartRequest(BaseModel):
+    candidate_id: str
+    role_title: str
+    company_name: str | None = None
+    mode: str = "behavioral"
+    difficulty: str = "medium"
+
+
+class InterviewAnswerRequest(BaseModel):
+    role_title: str
+    mode: str = "behavioral"
+    question: str
+    answer: str
+
+
+class InterviewNextRequest(BaseModel):
+    role_title: str
+    mode: str = "behavioral"
+    difficulty: str = "medium"
+    asked_questions: list[str] = []
+
+
+class InterviewSummaryRequest(BaseModel):
+    role_title: str
+    qa_pairs: list[dict[str, str]] = []
+    avg_score: float = 0.0
 
 
 class JobParseRequest(BaseModel):
@@ -59,32 +118,75 @@ class MatchJdRequest(BaseModel):
     job_title: str | None = None
 
 
+class CoachChatRequest(BaseModel):
+    candidate_id: str
+    message: str
+
+
+class InterviewPrepRequest(BaseModel):
+    candidate_id: str
+    job_id: str | None = None
+
+
+def _extract_cv_bullets(candidate_id: str) -> list[str]:
+    """Pull the candidate's real experience bullets from their parsed primary CV."""
+    parsed = sqlite_db.get_primary_cv_parsed(candidate_id) or {}
+    bullets: list[str] = []
+    for exp in parsed.get("experience") or []:
+        if not isinstance(exp, dict):
+            continue
+        for achievement in exp.get("achievements") or []:
+            text = str(achievement).strip()
+            if text:
+                bullets.append(text)
+        desc = str(exp.get("description") or "").strip()
+        if desc and desc not in bullets:
+            bullets.append(desc)
+    return bullets[:8]
+
+
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "careersignal", "database": "sqlite"}
+    return {"status": "ok", "service": "careersignal", "database": "postgres"}
 
 
 @app.post("/parse-cv")
 async def parse_cv_endpoint(
     candidate_id: str,
     file: UploadFile = File(...),
+    file_path: str | None = None,
 ):
+    filename = file.filename or "cv.pdf"
+    if not filename.lower().endswith(ALLOWED_CV_EXTENSIONS):
+        raise HTTPException(415, "Unsupported file type. Please upload a PDF or DOCX file.")
+
     content = await file.read()
     if len(content) > 10 * 1024 * 1024:
         raise HTTPException(400, "File too large (max 10MB)")
 
-    result = await parse_cv(content, file.filename or "cv.pdf")
+    try:
+        result = await parse_cv(content, filename)
+    except UnsupportedFileType:
+        raise HTTPException(415, "Unsupported file type. Please upload a PDF or DOCX file.")
     parsed = result["parsed"]
 
-    cv_id = sqlite_db.save_parsed_cv(
-        candidate_id=candidate_id,
-        file_name=file.filename or "cv.pdf",
-        parsed=parsed,
-        parsed_text=result["parsed_text"],
-        ats_score=result["ats_score"],
-        skills=result["skills"],
-        embedding=result["embedding"],
-    )
+    try:
+        cv_id = sqlite_db.save_parsed_cv(
+            candidate_id=candidate_id,
+            file_name=file.filename or "cv.pdf",
+            parsed=parsed,
+            parsed_text=result["parsed_text"],
+            ats_score=result["ats_score"],
+            skills=result["skills"],
+            embedding=result["embedding"],
+            file_path=file_path,
+        )
+    except Exception as e:  # noqa: BLE001
+        # The atomic cv-upload cap trigger raises a check_violation when a Free
+        # user exceeds the limit (race backstop). Surface it as 402, not 500.
+        if "CV upload limit" in str(e) or getattr(e, "sqlstate", None) == "23514":
+            raise HTTPException(402, "CV upload limit reached")
+        raise
 
     candidate = sqlite_db.get_candidate(candidate_id)
     return {
@@ -245,14 +347,112 @@ async def analyze_gap_endpoint(req: GapAnalysisRequest):
     candidate_skills = sqlite_db.get_candidate_skills(req.candidate_id)
     cv_text = sqlite_db.get_primary_cv_text(req.candidate_id) or candidate.get("profile_summary") or ""
     current_fit = sqlite_db.get_match_final_score(req.candidate_id, req.job_id) or 50.0
+    cv_bullets = _extract_cv_bullets(req.candidate_id)
 
-    gap = await analyze_cv_job_gap(candidate, job, cv_text, candidate_skills, current_fit)
+    gap = await analyze_cv_job_gap(
+        candidate,
+        job,
+        cv_text,
+        candidate_skills,
+        current_fit,
+        role_style=req.role_style,
+        cv_bullets=cv_bullets,
+    )
 
     explanation = sqlite_db.get_match_explanation(req.candidate_id, req.job_id)
     explanation["cv_gap"] = gap
     sqlite_db.update_match_explanation(req.candidate_id, req.job_id, explanation)
 
     return gap
+
+
+@app.post("/rewrite-bullet")
+async def rewrite_bullet_endpoint(req: RewriteBulletRequest):
+    if not req.bullet.strip():
+        raise HTTPException(400, "Bullet text is required")
+    if req.mode not in ("regenerate", "senior", "concise"):
+        raise HTTPException(400, "Invalid mode")
+
+    job = sqlite_db.get_job(req.job_id) if req.job_id else None
+    if not job:
+        job = {
+            "title": req.job_title or "",
+            "required_skills": req.required_skills,
+            "nice_to_have_skills": [],
+        }
+
+    return await rewrite_single_bullet(req.bullet, job, req.role_style, req.mode)
+
+
+@app.post("/ats-check")
+async def ats_check_endpoint(req: AtsCheckRequest):
+    from app.ats.checker import run_ats_check
+
+    cv_text = sqlite_db.get_primary_cv_text(req.candidate_id)
+    if not cv_text or len(cv_text.strip()) < 30:
+        candidate = sqlite_db.get_candidate(req.candidate_id) or {}
+        cv_text = candidate.get("profile_summary") or ""
+    if not cv_text or len(cv_text.strip()) < 30:
+        raise HTTPException(400, "No CV text found. Upload a CV first.")
+
+    return await run_ats_check(cv_text, req.jd_text, req.target_role)
+
+
+@app.post("/cover-letter/generate")
+async def cover_letter_endpoint(req: CoverLetterRequest):
+    from app.cover_letter.generator import generate_cover_letter
+
+    cv_text = sqlite_db.get_primary_cv_text(req.candidate_id)
+    candidate = sqlite_db.get_candidate(req.candidate_id) or {}
+    if not cv_text:
+        cv_text = candidate.get("profile_summary") or ""
+
+    job_title = req.job_title or ""
+    company_name = req.company_name or ""
+    jd_text = req.jd_text or ""
+    if req.job_id:
+        job = sqlite_db.get_job(req.job_id)
+        company = sqlite_db.get_company_for_job(req.job_id)
+        if job:
+            job_title = job_title or job.get("title") or ""
+            jd_text = jd_text or job.get("description") or ""
+        if company:
+            company_name = company_name or company.get("name") or ""
+
+    if not jd_text and not job_title:
+        raise HTTPException(400, "Provide a job description or title.")
+
+    return await generate_cover_letter(cv_text, candidate, job_title, company_name, jd_text, req.tone)
+
+
+@app.post("/interview/start")
+async def interview_start_endpoint(req: InterviewStartRequest):
+    from app.interview.studio import start_interview
+
+    return await start_interview(req.role_title, req.company_name, req.mode, req.difficulty)
+
+
+@app.post("/interview/answer")
+async def interview_answer_endpoint(req: InterviewAnswerRequest):
+    from app.interview.studio import score_answer
+
+    if not req.answer.strip():
+        raise HTTPException(400, "Answer is required")
+    return await score_answer(req.role_title, req.mode, req.question, req.answer)
+
+
+@app.post("/interview/next")
+async def interview_next_endpoint(req: InterviewNextRequest):
+    from app.interview.studio import next_question
+
+    return await next_question(req.role_title, req.mode, req.difficulty, req.asked_questions)
+
+
+@app.post("/interview/summary")
+async def interview_summary_endpoint(req: InterviewSummaryRequest):
+    from app.interview.studio import summarize_session
+
+    return await summarize_session(req.role_title, req.qa_pairs, req.avg_score)
 
 
 @app.post("/embed-candidate")
@@ -266,3 +466,31 @@ async def embed_candidate_endpoint(candidate_id: str):
     embedding = await generate_embedding(text)
     sqlite_db.update_candidate_embedding(candidate_id, embedding)
     return {"success": True}
+
+
+@app.post("/coach/chat")
+async def coach_chat_endpoint(req: CoachChatRequest):
+    candidate = sqlite_db.get_candidate(req.candidate_id)
+    if not candidate:
+        raise HTTPException(404, "Candidate not found")
+    if not req.message.strip():
+        raise HTTPException(400, "Message is required")
+
+    response = await coach_chat(req.candidate_id, req.message.strip())
+    return {"response": response}
+
+
+@app.post("/interview-prep/generate")
+async def interview_prep_generate_endpoint(req: InterviewPrepRequest):
+    candidate = sqlite_db.get_candidate(req.candidate_id)
+    if not candidate:
+        raise HTTPException(404, "Candidate not found")
+    if req.job_id and not sqlite_db.get_job(req.job_id):
+        raise HTTPException(404, "Job not found")
+
+    try:
+        prep = await generate_interview_prep(req.candidate_id, req.job_id)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc)) from exc
+
+    return prep

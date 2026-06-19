@@ -18,11 +18,11 @@ interface Props {
 
 export function CVScoreCard({ overallScore, breakdown }: Props) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">CV Score</p>
+    <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
+      <p className="text-xs font-semibold uppercase tracking-wide text-primary">CV Score</p>
       <div className="mt-2 flex items-baseline gap-2">
-        <span className="text-4xl font-bold text-indigo-600">{Math.round(overallScore)}</span>
-        <span className="text-slate-500">/100</span>
+        <span className="text-4xl font-bold text-primary">{Math.round(overallScore)}</span>
+        <span className="text-muted-foreground">/100</span>
       </div>
       <div className="mt-6 space-y-3">
         {(Object.entries(LABELS) as [keyof CvScoreBreakdown, string][]).map(([key, label]) => {
@@ -30,12 +30,12 @@ export function CVScoreCard({ overallScore, breakdown }: Props) {
           return (
             <div key={key}>
               <div className="flex justify-between text-sm">
-                <span className="text-slate-600">{label}</span>
-                <span className="font-medium text-slate-800">{Math.round(val)}%</span>
+                <span className="text-muted-foreground">{label}</span>
+                <span className="font-medium text-foreground">{Math.round(val)}%</span>
               </div>
-              <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
+              <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
                 <div
-                  className={`h-full rounded-full ${val >= 75 ? 'bg-emerald-500' : val >= 50 ? 'bg-amber-500' : 'bg-slate-400'}`}
+                  className={`h-full rounded-full ${val >= 75 ? 'bg-success' : val >= 50 ? 'bg-warning' : 'bg-muted-foreground'}`}
                   style={{ width: `${Math.min(val, 100)}%` }}
                 />
               </div>

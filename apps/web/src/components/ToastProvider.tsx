@@ -60,19 +60,19 @@ function ToastItem({ toast, onDismiss }: { toast: ToastState; onDismiss: () => v
 
   return (
     <div
-      className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-white p-4 shadow-lg"
+      className="flex items-start gap-3 rounded-xl border border-success/30 bg-card p-4 shadow-lg"
       role="status"
     >
-      <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+      <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-success" />
       <div className="min-w-0 flex-1">
-        <p className="font-semibold text-slate-900">{toast.title}</p>
+        <p className="font-semibold text-foreground">{toast.title}</p>
         {toast.description && (
-          <p className="mt-1 text-sm text-slate-600">{toast.description}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{toast.description}</p>
         )}
         {toast.action && (
           <Link
             href={toast.action.href}
-            className="mt-2 inline-block text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
+            className="mt-2 inline-block text-sm font-medium text-primary hover:text-primary-hover hover:underline"
           >
             {toast.action.label} →
           </Link>
@@ -81,7 +81,7 @@ function ToastItem({ toast, onDismiss }: { toast: ToastState; onDismiss: () => v
       <button
         type="button"
         onClick={onDismiss}
-        className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+        className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
         aria-label="Dismiss notification"
       >
         <X className="h-4 w-4" />

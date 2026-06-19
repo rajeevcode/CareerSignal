@@ -2,7 +2,7 @@ import { getAiServiceUrl } from '@/lib/utils';
 import { listMatchScoresForCandidate } from '@/lib/queries';
 
 export async function ensureBatchMatch(candidateId: string, limit = 50): Promise<void> {
-  const existing = listMatchScoresForCandidate(candidateId);
+  const existing = await listMatchScoresForCandidate(candidateId);
   if (existing.length > 0) return;
 
   try {

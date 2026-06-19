@@ -2,12 +2,13 @@ import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 import { getCandidateRowByUserId } from '@/lib/queries';
 import { getAiServiceUrl } from '@/lib/utils';
+import { getPlanStateForUser, gate, paywallBody, incrementJdMatch } from '@/lib/access';
 
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const candidate = getCandidateRowByUserId(session.userId);
+  const candidate = await getCandidateRowByUserId(session.userId);
   if (!candidate) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
 
   const body = await request.json();
@@ -17,6 +18,12 @@ export async function POST(request: Request) {
 
   if (!body.jd_text?.trim()) {
     return NextResponse.json({ error: 'Job description required' }, { status: 400 });
+  }
+
+  const planState = await getPlanStateForUser(session.userId);
+  const allowed = gate(planState, 'jd_match');
+  if (!allowed.allowed) {
+    return NextResponse.json(paywallBody(allowed), { status: 402 });
   }
 
   try {
@@ -30,7 +37,10 @@ export async function POST(request: Request) {
       }),
     });
     if (!res.ok) return NextResponse.json({ error: 'Match failed' }, { status: 500 });
-    return NextResponse.json(await res.json());
+    const data = await res.json();
+    // Count against the Free monthly quota only after a successful match.
+    if (planState.plan === 'free') await incrementJdMatch(session.userId);
+    return NextResponse.json(data);
   } catch {
     return NextResponse.json({ error: 'AI service unavailable' }, { status: 503 });
   }

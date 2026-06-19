@@ -2,8 +2,11 @@ from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# services/ai/app/config.py -> repo root is three parents up.
-_REPO_ROOT = Path(__file__).resolve().parents[3]
+# services/ai/app/config.py -> repo root is three parents up on the host.
+# In Docker the service is the build-context root (fewer parents), so guard the
+# index and fall back to the service dir; OS env (compose) is the source of truth there.
+_PARENTS = Path(__file__).resolve().parents
+_REPO_ROOT = _PARENTS[3] if len(_PARENTS) > 3 else _PARENTS[len(_PARENTS) - 1]
 
 
 class Settings(BaseSettings):

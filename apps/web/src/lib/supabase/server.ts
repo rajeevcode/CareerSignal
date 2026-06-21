@@ -8,8 +8,12 @@ import type { Database } from './database.types';
  */
 export async function createSupabaseServerClient() {
   const cookieStore = await cookies();
+  // Server-side calls may need a different host than the browser (e.g. inside a
+  // container reaching a host-running Supabase via host.docker.internal). Prefer
+  // the server-only SUPABASE_URL when set; fall back to the public URL.
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!;
   return createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    url,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {

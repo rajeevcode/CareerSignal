@@ -4,13 +4,11 @@ import Link from 'next/link';
 import { Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import { SidebarNav } from '@/components/SidebarNav';
-import { PaywallProvider } from '@/components/ui/PaywallModal';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <PaywallProvider>
     <div className="min-h-[calc(100vh-4rem)] lg:flex">
       <aside className="hidden w-60 shrink-0 border-r border-border bg-surface lg:block">
         <div className="sticky top-16 p-2">
@@ -45,6 +43,5 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="flex-1 px-4 py-6 sm:px-6 lg:px-8">{children}</div>
       </div>
     </div>
-    </PaywallProvider>
   );
 }

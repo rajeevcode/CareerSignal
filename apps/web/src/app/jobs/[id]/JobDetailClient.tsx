@@ -26,6 +26,7 @@ export function JobDetailClient({ job, matchScore, candidateId, isSaved, hasAppl
   const [applied, setApplied] = useState(hasApplied);
   const [loading, setLoading] = useState(false);
   const [applyNotice, setApplyNotice] = useState<string | null>(null);
+  const [estimate, setEstimate] = useState<{ jdMatch: number; ats: number; interviewSignal: number } | null>(null);
 
   async function toggleSave() {
     if (!candidateId) { authGate.open({ reason: 'Create a free account to save jobs to your tracker.', redirect: `/jobs/${job.id}` }); return; }
@@ -75,6 +76,11 @@ export function JobDetailClient({ job, matchScore, candidateId, isSaved, hasAppl
   const company = job.company;
   const explanation = matchScore?.explanation_json;
 
+  const baseSignal = matchScore ? (matchScore.interview_signal ?? matchScore.final_score) : 0;
+  const liveSignal = estimate ? Math.max(baseSignal, estimate.interviewSignal) : baseSignal;
+  const liveJdMatch = estimate ? Math.max(matchScore?.jd_match_score ?? 0, estimate.jdMatch) : matchScore?.jd_match_score;
+  const signalDelta = estimate ? Math.round(liveSignal - baseSignal) : 0;
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       <div className="grid gap-8 lg:grid-cols-3">
@@ -122,8 +128,8 @@ export function JobDetailClient({ job, matchScore, candidateId, isSaved, hasAppl
           <div className="lg:hidden">
             {matchScore ? (
               <InterviewProbabilityCard
-                score={matchScore.interview_signal ?? matchScore.final_score}
-                jdMatchScore={matchScore.jd_match_score}
+                score={liveSignal}
+                jdMatchScore={liveJdMatch}
                 cvScore={matchScore.cv_score}
                 breakdown={matchScore}
                 explanation={explanation}
@@ -161,7 +167,11 @@ export function JobDetailClient({ job, matchScore, candidateId, isSaved, hasAppl
               candidateId={candidateId}
               jobId={job.id}
               jobTitle={job.title}
+              companyName={company?.name}
+              requiredSkills={job.required_skills}
+              cvScore={matchScore?.cv_score}
               initialGap={matchScore?.explanation_json?.cv_gap}
+              onEstimate={setEstimate}
             />
             </div>
           )}
@@ -171,13 +181,18 @@ export function JobDetailClient({ job, matchScore, candidateId, isSaved, hasAppl
           {matchScore ? (
             <>
               <InterviewProbabilityCard
-                score={matchScore.interview_signal ?? matchScore.final_score}
-                jdMatchScore={matchScore.jd_match_score}
+                score={liveSignal}
+                jdMatchScore={liveJdMatch}
                 cvScore={matchScore.cv_score}
                 breakdown={matchScore}
                 explanation={explanation}
                 sticky
               />
+              {signalDelta > 0 && (
+                <p className="rounded-lg bg-success-soft px-3 py-2 text-center text-xs font-medium text-success">
+                  +{signalDelta} after CV optimization (estimated)
+                </p>
+              )}
               <div className="space-y-2">
                 <button
                   onClick={apply}

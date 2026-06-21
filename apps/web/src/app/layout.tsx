@@ -5,7 +5,9 @@ import { SiteFooter } from '@/components/cs/SiteFooter';
 import { PostHogProvider } from '@/components/PostHogProvider';
 import { ToastProvider } from '@/components/ToastProvider';
 import { AuthGateProvider } from '@/components/auth/AuthGate';
+import { PaywallProvider } from '@/components/ui/PaywallModal';
 import { ThemeProvider, THEME_NO_FLASH_SCRIPT } from '@/components/theme/ThemeProvider';
+import { getCurrentUser } from '@/lib/auth/session';
 import './globals.css';
 
 const inter = Inter({
@@ -27,7 +29,11 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const user = await getCurrentUser();
+  const headerUser = user
+    ? { email: user.email, role: user.role, plan: user.plan, full_name: user.full_name }
+    : null;
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
@@ -39,9 +45,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <PostHogProvider>
             <ToastProvider>
               <AuthGateProvider>
-                <SiteHeader />
-                <main>{children}</main>
-                <SiteFooter />
+                <PaywallProvider>
+                  <SiteHeader user={headerUser} />
+                  <main className="flex min-h-[calc(100vh-60px)] flex-col">{children}</main>
+                  <SiteFooter />
+                </PaywallProvider>
               </AuthGateProvider>
             </ToastProvider>
           </PostHogProvider>

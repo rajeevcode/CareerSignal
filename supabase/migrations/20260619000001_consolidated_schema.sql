@@ -571,3 +571,18 @@ CREATE POLICY p_cv_storage_select ON storage.objects FOR SELECT
   USING (bucket_id = 'cv-uploads' AND auth.uid()::text = (storage.foldername(name))[1]);
 CREATE POLICY p_cv_storage_delete ON storage.objects FOR DELETE
   USING (bucket_id = 'cv-uploads' AND auth.uid()::text = (storage.foldername(name))[1]);
+
+-- ---------------------------------------------------------------------------
+-- Role grants for PostgREST roles. service_role bypasses RLS and needs full
+-- table privileges (used by seed scripts and server-side admin client).
+-- authenticated/anon are gated by the RLS policies above.
+-- ---------------------------------------------------------------------------
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO authenticated;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO anon;

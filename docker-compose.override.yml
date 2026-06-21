@@ -1,0 +1,22 @@
+# LOCAL DEV ONLY — wires the web + AI containers to the host's local Supabase
+# stack (`supabase start`). The root .env uses 127.0.0.1 (host-friendly for
+# seed scripts run on the host); inside a container 127.0.0.1 is the container
+# itself, so we rewrite the host to host.docker.internal here.
+#
+# Compose auto-merges this file:  docker compose up --build
+services:
+  ai:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      SUPABASE_DB_URL: postgresql://postgres:postgres@host.docker.internal:54322/postgres
+
+  web:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      # Browser-facing URL must stay reachable from the user's browser (localhost).
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      # Server-side calls from inside the container go through host.docker.internal.
+      SUPABASE_URL: http://host.docker.internal:54321
+      SUPABASE_DB_URL: postgresql://postgres:postgres@host.docker.internal:54322/postgres

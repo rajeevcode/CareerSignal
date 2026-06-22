@@ -50,14 +50,17 @@ secret = "env(GOOGLE_CLIENT_SECRET)"
 # (http://127.0.0.1:54321/auth/v1/callback). Setting it explicitly can cause the
 # CLI/GoTrue to mark the provider disabled in this version.
 
-# LinkedIn OAuth (OpenID Connect) — disabled locally (no credentials). Enable in
-# production by setting LINKEDIN_CLIENT_ID / LINKEDIN_CLIENT_SECRET and enabled = true.
-# TODO: provision a LinkedIn app at https://www.linkedin.com/developers and request
-# the "Sign In with LinkedIn using OpenID Connect" product. The app uses provider
-# key `linkedin_oidc` (see lib/auth/oauth.ts). Until enabled, the social button
-# renders but returns a friendly "not set up yet" message.
+# LinkedIn OAuth (OpenID Connect). Provider key `linkedin_oidc` (see
+# lib/auth/oauth.ts). Provision a LinkedIn app at https://www.linkedin.com/developers,
+# request the "Sign In with LinkedIn using OpenID Connect" product, and set
+# LINKEDIN_CLIENT_ID / LINKEDIN_CLIENT_SECRET (exported into the shell that runs
+# `supabase start`). Add http://127.0.0.1:54321/auth/v1/callback as an authorized
+# redirect URL in the LinkedIn app. Until real creds are set, GoTrue keeps the
+# provider disabled and the button shows a friendly "not set up yet" message.
 [auth.external.linkedin_oidc]
-enabled = false
+enabled = true
 client_id = "env(LINKEDIN_CLIENT_ID)"
 secret = "env(LINKEDIN_CLIENT_SECRET)"
-redirect_uri = "http://localhost:54321/auth/v1/callback"
+# redirect_uri intentionally omitted — GoTrue derives it from api_external_url,
+# same as the Google block above (an explicit value can mark the provider
+# disabled in this CLI version).

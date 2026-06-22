@@ -2,7 +2,7 @@ import hmac
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -26,7 +26,14 @@ from app.scoring.cv_score_engine import compute_cv_score_breakdown
 from app.scoring.interview_signal_engine import compute_interview_signal, merge_match_result
 from app.scoring.jd_match_engine import compute_jd_match_breakdown, job_dict_from_jd_text
 
-def require_internal_token(x_internal_token: str | None = Header(default=None)) -> None:
+# Paths reachable without the shared secret (liveness probes only).
+_PUBLIC_PATHS = {"/health"}
+
+
+def require_internal_token(
+    request: Request,
+    x_internal_token: str | None = Header(default=None),
+) -> None:
     """Authenticate the trusted Next.js backend via a shared secret.
 
     This service performs NO per-user authorization — it trusts the caller and
@@ -34,8 +41,11 @@ def require_internal_token(x_internal_token: str | None = Header(default=None)) 
     able to reach the port could read or mutate any user's data (IDOR). When
     `internal_api_token` is unset we allow all callers (local dev only); set it
     in every non-local environment. Compared with hmac.compare_digest to avoid
-    timing leaks.
+    timing leaks. App-level dependencies always run (route-level `dependencies=[]`
+    does NOT clear them), so /health is exempted here by path instead.
     """
+    if request.url.path in _PUBLIC_PATHS:
+        return
     expected = settings.internal_api_token
     if not expected:
         return
@@ -168,7 +178,7 @@ def _extract_cv_bullets(candidate_id: str) -> list[str]:
     return bullets[:8]
 
 
-@app.get("/health", dependencies=[])
+@app.get("/health")
 async def health():
     return {"status": "ok", "service": "careersignal", "database": "postgres"}
 

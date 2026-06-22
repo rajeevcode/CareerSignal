@@ -23,8 +23,23 @@ CREATE POLICY p_profiles_update ON profiles FOR UPDATE
     auth.uid() = id
     AND role = (SELECT role FROM profiles WHERE id = auth.uid())
   );
--- Defense in depth: even with a permissive policy, deny direct role writes.
-REVOKE UPDATE (role) ON profiles FROM authenticated;
+-- Defense in depth: drop the table-wide UPDATE grant (which implicitly covers
+-- every column, so a column-level REVOKE alone can't carve out `role`) and
+-- re-grant UPDATE per-column for everything EXCEPT `role`. Now even a future
+-- permissive policy cannot let `authenticated` write the role column directly.
+REVOKE UPDATE ON profiles FROM authenticated;
+DO $$
+DECLARE
+  cols TEXT;
+BEGIN
+  SELECT string_agg(quote_ident(column_name), ', ')
+    INTO cols
+  FROM information_schema.columns
+  WHERE table_schema = 'public'
+    AND table_name = 'profiles'
+    AND column_name <> 'role';
+  EXECUTE format('GRANT UPDATE (%s) ON public.profiles TO authenticated', cols);
+END $$;
 
 -- 2) candidate_profiles: bind user_id to the caller on every write.
 --    (Score/embedding/onboarding columns are written by the trusted backend,

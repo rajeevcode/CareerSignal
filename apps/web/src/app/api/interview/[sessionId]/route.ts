@@ -12,7 +12,7 @@ import {
 } from '@careersignal/db';
 import { getSession } from '@/lib/auth/session';
 import { getCandidateRowByUserId } from '@/lib/queries';
-import { getAiServiceUrl } from '@/lib/utils';
+import { aiFetch } from '@/lib/utils';
 
 const TOTAL_TURNS = 5;
 
@@ -69,13 +69,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ ses
   const current = [...messages].reverse().find((m) => !m.answer);
   if (!current) return NextResponse.json({ error: 'No open question' }, { status: 400 });
 
-  const ai = getAiServiceUrl();
-
   // 1) Score the answer (STAR).
   let feedback: unknown = null;
   let score: number | null = null;
   try {
-    const scoreRes = await fetch(`${ai}/interview/answer`, {
+    const scoreRes = await aiFetch(`/interview/answer`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ role_title: s.roleTitle, mode: s.mode, question: current.question, answer }),
@@ -107,7 +105,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ ses
     try {
       const qa = messages.map((m) => ({ question: m.question, answer: m.answer || '' }));
       qa.push({ question: current.question, answer });
-      const sumRes = await fetch(`${ai}/interview/summary`, {
+      const sumRes = await aiFetch(`/interview/summary`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role_title: s.roleTitle, qa_pairs: qa, avg_score: avg }),
@@ -128,7 +126,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ ses
   // Next question.
   let nextQuestion: string | null = null;
   try {
-    const nextRes = await fetch(`${ai}/interview/next`, {
+    const nextRes = await aiFetch(`/interview/next`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

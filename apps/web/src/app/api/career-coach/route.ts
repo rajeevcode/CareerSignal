@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { getDb, coachMessages, newId, toIsoNow } from '@careersignal/db';
 import { getSession } from '@/lib/auth/session';
 import { getCandidateRowByUserId } from '@/lib/queries';
-import { getAiServiceUrl } from '@/lib/utils';
+import { aiFetch } from '@/lib/utils';
 import { getPlanStateForUser, gate, paywallBody } from '@/lib/access';
 
 export async function POST(request: Request) {
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const res = await fetch(`${getAiServiceUrl()}/coach/chat`, {
+    const res = await aiFetch(`/coach/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ candidate_id: candidate.id, message: message.trim() }),

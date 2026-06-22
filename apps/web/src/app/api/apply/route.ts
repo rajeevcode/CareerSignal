@@ -23,11 +23,14 @@ export async function POST(request: Request) {
   if (!candidate) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
 
   const db = getDb();
+  // Only published jobs are applicable — otherwise a candidate could apply to
+  // draft/closed jobs by passing their id directly (info disclosure + spurious
+  // applicant-count bumps).
   const jobRow = (await db
     .select({ job: jobs, company: companies })
     .from(jobs)
     .innerJoin(companies, eq(jobs.companyId, companies.id))
-    .where(eq(jobs.id, job_id))
+    .where(and(eq(jobs.id, job_id), eq(jobs.status, 'published')))
     .limit(1))[0];
 
   if (!jobRow) {

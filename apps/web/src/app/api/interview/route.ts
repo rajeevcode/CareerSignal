@@ -11,7 +11,7 @@ import {
 import { getSession } from '@/lib/auth/session';
 import { getCandidateRowByUserId } from '@/lib/queries';
 import { getUserPlan, paywallBody } from '@/lib/access';
-import { getAiServiceUrl } from '@/lib/utils';
+import { aiFetch } from '@/lib/utils';
 
 export async function GET() {
   const session = await getSession();
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
   const difficulty = ['easy', 'medium', 'hard'].includes(body.difficulty) ? body.difficulty : 'medium';
 
   try {
-    const res = await fetch(`${getAiServiceUrl()}/interview/start`, {
+    const res = await aiFetch(`/interview/start`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSession, setSessionCookie, getSessionPayloadForUser } from '@/lib/auth/session';
 import { getCandidateRowByUserId, setOnboardingStep } from '@/lib/queries';
 import { saveUploadedFile } from '@/lib/storage';
-import { getAiServiceUrl } from '@/lib/utils';
+import { aiFetch } from '@/lib/utils';
 import { getPlanStateForUser, gate, paywallBody } from '@/lib/access';
 
 export async function POST(request: Request) {
@@ -41,8 +41,8 @@ export async function POST(request: Request) {
     const aiForm = new FormData();
     aiForm.append('file', new Blob([buffer], { type: file.type }), file.name);
 
-    const res = await fetch(
-      `${getAiServiceUrl()}/parse-cv?candidate_id=${candidate.id}&file_path=${encodeURIComponent(filePath)}`,
+    const res = await aiFetch(
+      `/parse-cv?candidate_id=${candidate.id}&file_path=${encodeURIComponent(filePath)}`,
       {
         method: 'POST',
         body: aiForm,

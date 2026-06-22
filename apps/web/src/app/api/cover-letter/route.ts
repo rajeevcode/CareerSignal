@@ -4,7 +4,7 @@ import { getDb, coverLetters, mapCoverLetter, newId, toIsoNow } from '@careersig
 import { getSession } from '@/lib/auth/session';
 import { getCandidateRowByUserId } from '@/lib/queries';
 import { getPlanStateForUser, gate, paywallBody } from '@/lib/access';
-import { getAiServiceUrl } from '@/lib/utils';
+import { aiFetch } from '@/lib/utils';
 
 export async function GET() {
   const session = await getSession();
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const res = await fetch(`${getAiServiceUrl()}/cover-letter/generate`, {
+    const res = await aiFetch(`/cover-letter/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

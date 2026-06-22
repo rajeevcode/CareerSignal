@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 import { getCandidateRowByUserId } from '@/lib/queries';
-import { getAiServiceUrl } from '@/lib/utils';
+import { aiFetch } from '@/lib/utils';
 
 // ATS check basic report is free (deterministic + cheap). The UI gates the full
 // checklist behind Pro.
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
 
   try {
-    const res = await fetch(`${getAiServiceUrl()}/ats-check`, {
+    const res = await aiFetch(`/ats-check`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

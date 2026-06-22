@@ -28,6 +28,19 @@ export function getAiServiceUrl(): string {
   return process.env.AI_SERVICE_URL || 'http://localhost:8000';
 }
 
+/**
+ * Server-side fetch to the internal AI service. Injects the shared-secret
+ * `X-Internal-Token` header (the AI service does no per-user authz of its own;
+ * it trusts this backend), so this MUST only be called from server code.
+ * `path` is appended to the AI service base URL (e.g. '/match/jd').
+ */
+export function aiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const token = process.env.AI_INTERNAL_TOKEN;
+  const headers = new Headers(init.headers);
+  if (token) headers.set('X-Internal-Token', token);
+  return fetch(`${getAiServiceUrl()}${path}`, { ...init, headers });
+}
+
 export function getAppUrl(): string {
   return process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 }

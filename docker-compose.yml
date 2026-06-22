@@ -10,13 +10,19 @@ services:
     build:
       context: ./services/ai
       dockerfile: Dockerfile
+    # Bind the published port to loopback only — the web container reaches the
+    # AI service over the compose network (http://ai:8000), so the host mapping
+    # is just for local debugging and must not be exposed on all interfaces.
     ports:
-      - "${AI_PORT:-8011}:8000"
+      - "127.0.0.1:${AI_PORT:-8011}:8000"
     environment:
       SUPABASE_DB_URL: ${SUPABASE_DB_URL}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       CORS_ORIGINS: http://localhost:${WEB_PORT:-3000}
+      # Shared secret the web service must present (see .env.example). Optional
+      # in pure-local dev; set it whenever the service is otherwise reachable.
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-}
       LLM_MODEL: ${LLM_MODEL:-}
       EMBEDDING_MODEL: ${EMBEDDING_MODEL:-}
     healthcheck:
@@ -42,6 +48,8 @@ services:
       SUPABASE_DB_URL: ${SUPABASE_DB_URL}
       # Talk to the AI container over the compose network.
       AI_SERVICE_URL: http://ai:8000
+      # Must match the AI service's INTERNAL_API_TOKEN.
+      AI_INTERNAL_TOKEN: ${INTERNAL_API_TOKEN:-}
       NEXT_PUBLIC_APP_URL: http://localhost:${WEB_PORT:-3000}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY:-}

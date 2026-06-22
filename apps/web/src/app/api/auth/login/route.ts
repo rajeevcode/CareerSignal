@@ -4,6 +4,9 @@ import { loginUser, setSessionCookie } from '@/lib/auth/session';
 export async function POST(request: Request) {
   try {
     const { email, password } = await request.json();
+    if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
+      return NextResponse.json({ error: 'Email and password are required' }, { status: 400 });
+    }
     const user = await loginUser(email, password);
     await setSessionCookie(user);
     return NextResponse.json({ success: true });

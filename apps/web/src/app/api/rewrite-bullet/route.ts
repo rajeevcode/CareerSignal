@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
-import { getAiServiceUrl } from '@/lib/utils';
+import { aiFetch } from '@/lib/utils';
 import { getPlanStateForUser, gate, paywallBody } from '@/lib/access';
 
 const MODES = ['regenerate', 'senior', 'concise'];
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const res = await fetch(`${getAiServiceUrl()}/rewrite-bullet`, {
+    const res = await aiFetch(`/rewrite-bullet`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

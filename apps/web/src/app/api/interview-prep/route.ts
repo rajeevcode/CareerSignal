@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { getDb, interviewPrepSessions, newId, toIsoNow } from '@careersignal/db';
 import { getSession } from '@/lib/auth/session';
 import { getCandidateRowByUserId } from '@/lib/queries';
-import { getAiServiceUrl } from '@/lib/utils';
+import { aiFetch } from '@/lib/utils';
 import { getUserPlan, paywallBody } from '@/lib/access';
 
 export async function POST(request: Request) {
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
   const jobId = body.job_id ?? null;
 
   try {
-    const res = await fetch(`${getAiServiceUrl()}/interview-prep/generate`, {
+    const res = await aiFetch(`/interview-prep/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ candidate_id: candidate.id, job_id: jobId }),

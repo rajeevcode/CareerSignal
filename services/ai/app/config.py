@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-3-small"
     llm_model: str = "gpt-4o-mini"
     cors_origins: str = "http://localhost:3000"
+    # Shared secret the trusted Next.js backend sends as `X-Internal-Token`.
+    # When set, every endpoint requires it (the service does no per-user authz of
+    # its own — it trusts the backend). Leave empty ONLY for local dev where the
+    # port is not reachable from outside the host.
+    internal_api_token: str = ""
 
     # Load the repo-root .env regardless of the process working directory, then
     # allow a local services/ai/.env to override it. Later files win.

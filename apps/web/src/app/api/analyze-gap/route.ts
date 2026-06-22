@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 import { getCandidateRowByUserId } from '@/lib/queries';
-import { getAiServiceUrl } from '@/lib/utils';
+import { aiFetch } from '@/lib/utils';
 
 export async function POST(request: Request) {
   const session = await getSession();
@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const res = await fetch(`${getAiServiceUrl()}/analyze-gap`, {
+    const res = await aiFetch(`/analyze-gap`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ candidate_id, job_id, role_style: role_style || 'ai_product_manager' }),

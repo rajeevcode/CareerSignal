@@ -10,6 +10,7 @@ services:
       DATABASE_PATH: /app/data/careersignal.db
       UPLOADS_PATH: /app/data/uploads
       AI_SERVICE_URL: http://ai:8000
+      AI_INTERNAL_TOKEN: ${INTERNAL_API_TOKEN:?Set INTERNAL_API_TOKEN in .env}
       AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env}
       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
@@ -25,10 +26,14 @@ services:
     build:
       context: ./services/ai
       dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
+    # No host port mapping: the AI service is reachable only over the compose
+    # network (web → http://ai:8000). It must never be exposed publicly — it
+    # has no per-user authz and trusts the INTERNAL_API_TOKEN-bearing backend.
+    expose:
+      - "8000"
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY in .env}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?Set INTERNAL_API_TOKEN in .env}
       DATABASE_PATH: /app/data/careersignal.db
       CORS_ORIGINS: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
     volumes:

@@ -1,9 +1,10 @@
+import hmac
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.analyzer.cv_job_analyzer import (
     analyze_cv_job_gap,
@@ -25,14 +26,36 @@ from app.scoring.cv_score_engine import compute_cv_score_breakdown
 from app.scoring.interview_signal_engine import compute_interview_signal, merge_match_result
 from app.scoring.jd_match_engine import compute_jd_match_breakdown, job_dict_from_jd_text
 
-app = FastAPI(title="CareerSignal", version="0.2.0")
+def require_internal_token(x_internal_token: str | None = Header(default=None)) -> None:
+    """Authenticate the trusted Next.js backend via a shared secret.
+
+    This service performs NO per-user authorization — it trusts the caller and
+    acts on whatever candidate_id/job_id it is given. Without this gate, anyone
+    able to reach the port could read or mutate any user's data (IDOR). When
+    `internal_api_token` is unset we allow all callers (local dev only); set it
+    in every non-local environment. Compared with hmac.compare_digest to avoid
+    timing leaks.
+    """
+    expected = settings.internal_api_token
+    if not expected:
+        return
+    if not x_internal_token or not hmac.compare_digest(x_internal_token, expected):
+        raise HTTPException(401, "Unauthorized")
+
+
+app = FastAPI(
+    title="CareerSignal",
+    version="0.2.0",
+    # Applied to every route, including the query-param endpoints below.
+    dependencies=[Depends(require_internal_token)],
+)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins.split(","),
+    allow_origins=[o for o in settings.cors_origins.split(",") if o],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["POST", "GET"],
+    allow_headers=["Content-Type", "X-Internal-Token"],
 )
 
 
@@ -48,54 +71,54 @@ class GapAnalysisRequest(BaseModel):
 
 
 class RewriteBulletRequest(BaseModel):
-    bullet: str
+    bullet: str = Field(max_length=2000)
     job_id: str | None = None
-    job_title: str | None = None
-    required_skills: list[str] = []
+    job_title: str | None = Field(default=None, max_length=200)
+    required_skills: list[str] = Field(default=[], max_length=100)
     role_style: str = "ai_product_manager"
     mode: str = "regenerate"
 
 
 class AtsCheckRequest(BaseModel):
     candidate_id: str
-    jd_text: str | None = None
-    target_role: str | None = None
+    jd_text: str | None = Field(default=None, max_length=20000)
+    target_role: str | None = Field(default=None, max_length=200)
 
 
 class CoverLetterRequest(BaseModel):
     candidate_id: str
-    jd_text: str | None = None
+    jd_text: str | None = Field(default=None, max_length=20000)
     job_id: str | None = None
-    job_title: str | None = None
-    company_name: str | None = None
+    job_title: str | None = Field(default=None, max_length=200)
+    company_name: str | None = Field(default=None, max_length=200)
     tone: str = "warm"
 
 
 class InterviewStartRequest(BaseModel):
     candidate_id: str
-    role_title: str
-    company_name: str | None = None
+    role_title: str = Field(max_length=200)
+    company_name: str | None = Field(default=None, max_length=200)
     mode: str = "behavioral"
     difficulty: str = "medium"
 
 
 class InterviewAnswerRequest(BaseModel):
-    role_title: str
+    role_title: str = Field(max_length=200)
     mode: str = "behavioral"
-    question: str
-    answer: str
+    question: str = Field(max_length=4000)
+    answer: str = Field(max_length=10000)
 
 
 class InterviewNextRequest(BaseModel):
-    role_title: str
+    role_title: str = Field(max_length=200)
     mode: str = "behavioral"
     difficulty: str = "medium"
-    asked_questions: list[str] = []
+    asked_questions: list[str] = Field(default=[], max_length=50)
 
 
 class InterviewSummaryRequest(BaseModel):
-    role_title: str
-    qa_pairs: list[dict[str, str]] = []
+    role_title: str = Field(max_length=200)
+    qa_pairs: list[dict[str, str]] = Field(default=[], max_length=50)
     avg_score: float = 0.0
 
 
@@ -114,13 +137,13 @@ class ScoreCvRequest(BaseModel):
 
 class MatchJdRequest(BaseModel):
     candidate_id: str
-    jd_text: str
-    job_title: str | None = None
+    jd_text: str = Field(max_length=20000)
+    job_title: str | None = Field(default=None, max_length=200)
 
 
 class CoachChatRequest(BaseModel):
     candidate_id: str
-    message: str
+    message: str = Field(max_length=8000)
 
 
 class InterviewPrepRequest(BaseModel):
@@ -145,7 +168,7 @@ def _extract_cv_bullets(candidate_id: str) -> list[str]:
     return bullets[:8]
 
 
-@app.get("/health")
+@app.get("/health", dependencies=[])
 async def health():
     return {"status": "ok", "service": "careersignal", "database": "postgres"}
 

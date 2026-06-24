@@ -2,8 +2,9 @@
 import json
 from typing import Any
 
+from app.budget import BudgetExceeded
 from app.config import settings
-from app.openai_client import get_openai, resolve_model
+from app.openai_client import chat_completion
 
 TONES = {
     "concise": "concise and direct — short paragraphs, no filler",
@@ -27,9 +28,9 @@ async def generate_cover_letter(
         return {"content": _fallback(candidate, job_title, company_name, tone)}
 
     try:
-        client = get_openai()
-        resp = client.chat.completions.create(
-            model=resolve_model(settings.llm_model),
+        resp = chat_completion(
+            feature="cover_letter",
+            candidate_id=candidate.get("id"),
             messages=[
                 {"role": "system", "content": (
                     "You are an expert career writer. Write a tailored, one-page cover letter "
@@ -52,6 +53,8 @@ async def generate_cover_letter(
         if not content:
             return {"content": _fallback(candidate, job_title, company_name, tone)}
         return {"content": content}
+    except BudgetExceeded:
+        raise
     except Exception:
         return {"content": _fallback(candidate, job_title, company_name, tone)}
 

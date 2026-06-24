@@ -2,8 +2,9 @@
 import json
 from typing import Any
 
+from app.budget import BudgetExceeded
 from app.config import settings
-from app.openai_client import get_openai, resolve_model
+from app.openai_client import chat_completion
 
 TOTAL_TURNS = 5
 
@@ -14,16 +15,12 @@ MODE_GUIDE = {
 }
 
 
-def _client():
-    return get_openai()
-
-
 async def start_interview(role_title: str, company_name: str | None, mode: str, difficulty: str) -> dict[str, Any]:
     if not settings.openai_api_key:
         return {"question": _fallback_question(role_title, mode, [])}
     try:
-        resp = _client().chat.completions.create(
-            model=resolve_model(settings.llm_model),
+        resp = chat_completion(
+            feature="interview_start",
             messages=[
                 {"role": "system", "content": "You are a senior interviewer. Output STRICT JSON: {\"question\": string}."},
                 {"role": "user", "content": (
@@ -39,6 +36,8 @@ async def start_interview(role_title: str, company_name: str | None, mode: str, 
         data = json.loads(resp.choices[0].message.content or "{}")
         q = str(data.get("question") or "").strip()
         return {"question": q or _fallback_question(role_title, mode, [])}
+    except BudgetExceeded:
+        raise
     except Exception:
         return {"question": _fallback_question(role_title, mode, [])}
 
@@ -47,8 +46,8 @@ async def score_answer(role_title: str, mode: str, question: str, answer: str) -
     if not settings.openai_api_key:
         return _fallback_score()
     try:
-        resp = _client().chat.completions.create(
-            model=resolve_model(settings.llm_model),
+        resp = chat_completion(
+            feature="interview_answer",
             messages=[
                 {"role": "system", "content": (
                     "You are an expert interview coach. Score the answer with the STAR framework "
@@ -77,6 +76,8 @@ async def score_answer(role_title: str, mode: str, question: str, answer: str) -
                 "result": _clamp(star.get("result"), 100),
             },
         }
+    except BudgetExceeded:
+        raise
     except Exception:
         return _fallback_score()
 
@@ -89,8 +90,8 @@ async def next_question(role_title: str, mode: str, difficulty: str, asked_quest
         return {"question": _fallback_question(role_title, mode, asked_questions), "done": False}
     try:
         asked = "\n".join(f"- {q}" for q in asked_questions) or "(none yet)"
-        resp = _client().chat.completions.create(
-            model=resolve_model(settings.llm_model),
+        resp = chat_completion(
+            feature="interview_next",
             messages=[
                 {"role": "system", "content": "You are a senior interviewer. Output STRICT JSON: {\"question\": string}."},
                 {"role": "user", "content": (
@@ -105,6 +106,8 @@ async def next_question(role_title: str, mode: str, difficulty: str, asked_quest
         data = json.loads(resp.choices[0].message.content or "{}")
         q = str(data.get("question") or "").strip()
         return {"question": q or _fallback_question(role_title, mode, asked_questions), "done": False}
+    except BudgetExceeded:
+        raise
     except Exception:
         return {"question": _fallback_question(role_title, mode, asked_questions), "done": False}
 
@@ -116,8 +119,8 @@ async def summarize_session(role_title: str, qa_pairs: list[dict[str, str]], avg
         transcript = "\n\n".join(
             f"Q: {p.get('question', '')}\nA: {p.get('answer', '')}" for p in qa_pairs[:8]
         )
-        resp = _client().chat.completions.create(
-            model=resolve_model(settings.llm_model),
+        resp = chat_completion(
+            feature="interview_summary",
             messages=[
                 {"role": "system", "content": "You are an interview coach. Output STRICT JSON: {\"summary\": string}."},
                 {"role": "user", "content": (
@@ -133,6 +136,8 @@ async def summarize_session(role_title: str, qa_pairs: list[dict[str, str]], avg
         )
         data = json.loads(resp.choices[0].message.content or "{}")
         return {"summary": str(data.get("summary") or "").strip() or _fallback_summary(avg_score)}
+    except BudgetExceeded:
+        raise
     except Exception:
         return {"summary": _fallback_summary(avg_score)}
 

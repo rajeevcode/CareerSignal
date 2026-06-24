@@ -23,6 +23,20 @@ class Settings(BaseSettings):
     # port is not reachable from outside the host.
     internal_api_token: str = ""
 
+    # --- LLM spend circuit-breaker -----------------------------------------
+    # Global (all-users) USD ceilings on LLM API spend. When the rolling spend
+    # in a window reaches its cap, new LLM calls are refused with BudgetExceeded
+    # (HTTP 503) so a runaway loop / abuse spike can't silently rack up an
+    # unbounded provider bill. 0 or negative = that window is unlimited.
+    # Daily resets at 00:00 UTC; monthly at the 1st 00:00 UTC.
+    llm_daily_budget_usd: float = 50.0
+    llm_monthly_budget_usd: float = 1000.0
+    # Per-model override prices in USD per 1M tokens, as JSON:
+    #   {"gpt-4o": {"input": 2.5, "output": 10}, "openai/gpt-4o-mini": {...}}
+    # Merged over the built-in defaults in pricing.py; lets you adjust prices or
+    # add a model without a code change. Empty = use built-in defaults only.
+    llm_price_overrides: str = ""
+
     # Load the repo-root .env regardless of the process working directory, then
     # allow a local services/ai/.env to override it. Later files win.
     model_config = SettingsConfigDict(

@@ -7,8 +7,9 @@ import json
 import re
 from typing import Any
 
+from app.budget import BudgetExceeded
 from app.config import settings
-from app.openai_client import get_openai, resolve_model
+from app.openai_client import chat_completion
 
 SECTION_PATTERNS = {
     "Experience": re.compile(r"\b(work\s+experience|professional\s+experience|experience|employment)\b", re.I),
@@ -146,14 +147,13 @@ async def _keyword_suggestions(cv_text: str, jd_text: str | None, target_role: s
     if not settings.openai_api_key:
         return []
     try:
-        client = get_openai()
         ctx = ""
         if target_role:
             ctx += f"Target role: {target_role}\n"
         if jd_text:
             ctx += f"Job description:\n{jd_text[:3000]}\n"
-        resp = client.chat.completions.create(
-            model=resolve_model(settings.llm_model),
+        resp = chat_completion(
+            feature="ats_check",
             messages=[
                 {"role": "system", "content": "You are an ATS keyword specialist. Return STRICT JSON only."},
                 {"role": "user", "content": (
@@ -168,6 +168,8 @@ async def _keyword_suggestions(cv_text: str, jd_text: str | None, target_role: s
         )
         data = json.loads(resp.choices[0].message.content or "{}")
         return [str(k).strip() for k in (data.get("keyword_suggestions") or []) if str(k).strip()][:10]
+    except BudgetExceeded:
+        raise
     except Exception:
         return []
 

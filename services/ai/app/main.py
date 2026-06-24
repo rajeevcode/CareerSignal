@@ -4,7 +4,10 @@ from typing import Any
 
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+
+from app.budget import BudgetExceeded
 
 from app.analyzer.cv_job_analyzer import (
     analyze_cv_job_gap,
@@ -67,6 +70,19 @@ app.add_middleware(
     allow_methods=["POST", "GET"],
     allow_headers=["Content-Type", "X-Internal-Token"],
 )
+
+
+@app.exception_handler(BudgetExceeded)
+async def budget_exceeded_handler(_request: Request, exc: BudgetExceeded) -> JSONResponse:
+    """Global LLM spend ceiling hit -> 503 (temporary, retry after the window resets)."""
+    return JSONResponse(
+        status_code=503,
+        content={
+            "error": "ai_budget_exhausted",
+            "detail": str(exc),
+            "window": exc.window,
+        },
+    )
 
 
 class MatchRequest(BaseModel):

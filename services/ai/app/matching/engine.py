@@ -6,19 +6,18 @@ from openai import AuthenticationError, OpenAIError
 
 from app.config import settings
 from app.matching.skill_graph import expand_skills, normalize_skills, skill_match_score
-from app.openai_client import get_openai, resolve_model
+from app.budget import BudgetExceeded
+from app.openai_client import chat_completion, embedding
 
 
 async def generate_embedding(text: str) -> list[float]:
     if not text.strip() or not settings.openai_api_key:
         return [0.0] * 1536
     try:
-        client = get_openai()
-        response = client.embeddings.create(
-            model=resolve_model(settings.embedding_model),
-            input=text[:8000],
-        )
+        response = embedding(input=text[:8000], feature="embedding")
         return response.data[0].embedding
+    except BudgetExceeded:
+        raise
     except (AuthenticationError, OpenAIError):
         return [0.0] * 1536
 
@@ -188,7 +187,6 @@ async def generate_explanation(
     if not settings.openai_api_key:
         return _fallback_explanation(candidate, job, breakdown, candidate_skills)
 
-    client = get_openai()
     prompt = f"""Analyze this candidate-job match and return JSON with:
 - summary: 2-3 sentence explanation of estimated interview probability
 - strengths: array of 2-5 reasons they are likely to be considered
@@ -210,17 +208,20 @@ Scores: skill={breakdown['skill_score']}, experience={breakdown['experience_scor
 Use "estimated interview probability" language. Be specific and honest."""
 
     try:
-        response = client.chat.completions.create(
-            model=resolve_model(settings.llm_model),
+        response = chat_completion(
             messages=[
                 {"role": "system", "content": "You are a career matching expert. Return valid JSON only."},
                 {"role": "user", "content": prompt},
             ],
             response_format={"type": "json_object"},
             temperature=0.3,
+            feature="match_explanation",
+            candidate_id=candidate.get("id"),
         )
         import json
         return json.loads(response.choices[0].message.content or "{}")
+    except BudgetExceeded:
+        raise
     except Exception:
         return _fallback_explanation(candidate, job, breakdown, candidate_skills)
 

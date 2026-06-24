@@ -2,8 +2,9 @@ import json
 from typing import Any
 
 from app import db as sqlite_db
+from app.budget import BudgetExceeded
 from app.config import settings
-from app.openai_client import get_openai, resolve_model
+from app.openai_client import chat_completion
 
 
 async def generate_interview_prep(candidate_id: str, job_id: str | None = None) -> dict[str, Any]:
@@ -47,10 +48,10 @@ CV excerpt: {cv_text[:2000]}
 
 Include 8-10 interview questions mixing behavioral, technical, and role-specific."""
 
-    client = get_openai()
     try:
-        response = client.chat.completions.create(
-            model=resolve_model(settings.llm_model),
+        response = chat_completion(
+            feature="interview_prep",
+            candidate_id=candidate_id,
             messages=[
                 {"role": "system", "content": "You are an interview coach. Return valid JSON only."},
                 {"role": "user", "content": prompt},
@@ -65,6 +66,8 @@ Include 8-10 interview questions mixing behavioral, technical, and role-specific
             "plan_30_90": result.get("plan_30_90") or "",
             "readiness_score": float(result.get("readiness_score") or 70),
         }
+    except BudgetExceeded:
+        raise
     except Exception:
         return _fallback_prep(candidate, job, company, skills)
 

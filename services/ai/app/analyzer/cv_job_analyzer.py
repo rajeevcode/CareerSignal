@@ -5,7 +5,8 @@ from typing import Any
 from app.config import settings
 from app.matching.engine import generate_embedding
 from app.matching.skill_graph import extract_skills_from_text, normalize_skills
-from app.openai_client import get_openai, resolve_model
+from app.budget import BudgetExceeded
+from app.openai_client import chat_completion
 
 PLACEHOLDER_RE = re.compile(r"\[[^\]]+\]")
 
@@ -184,9 +185,9 @@ Rules:
 - score_impact values are additive POINTS, each between 0 and 15."""
 
     try:
-        client = get_openai()
-        response = client.chat.completions.create(
-            model=resolve_model(settings.llm_model),
+        response = chat_completion(
+            feature="analyze_gap",
+            candidate_id=candidate.get("id"),
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
@@ -200,6 +201,8 @@ Rules:
         if not finalized["bullet_rewrites"]:
             return _fallback_gap_analysis(job, candidate_skills, current_fit, role_style, cv_bullets)
         return finalized
+    except BudgetExceeded:
+        raise
     except Exception:
         return _fallback_gap_analysis(job, candidate_skills, current_fit, role_style, cv_bullets)
 
@@ -303,9 +306,8 @@ Return this exact JSON:
 score_impact values are additive POINTS, each between 0 and 15."""
 
     try:
-        client = get_openai()
-        response = client.chat.completions.create(
-            model=resolve_model(settings.llm_model),
+        response = chat_completion(
+            feature="rewrite_bullet",
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
@@ -325,6 +327,8 @@ score_impact values are additive POINTS, each between 0 and 15."""
             "score_impact": _normalize_score_impact(raw.get("score_impact")),
             "is_placeholder": bool(PLACEHOLDER_RE.search(after)),
         }
+    except BudgetExceeded:
+        raise
     except Exception:
         return _fallback_single_bullet(bullet, job, role_style, mode)
 

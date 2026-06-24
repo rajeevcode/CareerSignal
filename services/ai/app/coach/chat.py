@@ -1,8 +1,9 @@
 from typing import Any
 
 from app import db as sqlite_db
+from app.budget import BudgetExceeded
 from app.config import settings
-from app.openai_client import get_openai, resolve_model
+from app.openai_client import chat_completion
 
 
 async def coach_chat(candidate_id: str, message: str) -> str:
@@ -36,14 +37,17 @@ async def coach_chat(candidate_id: str, message: str) -> str:
         messages.append({"role": msg["role"], "content": msg["content"]})
     messages.append({"role": "user", "content": message})
 
-    client = get_openai()
     try:
-        response = client.chat.completions.create(
-            model=resolve_model(settings.llm_model),
+        response = chat_completion(
             messages=messages,
             temperature=0.6,
+            feature="coach_chat",
+            candidate_id=candidate_id,
         )
         return response.choices[0].message.content or _fallback_response(candidate, message)
+    except BudgetExceeded:
+        # Don't mask a budget stop as a generic fallback — let it surface as 503.
+        raise
     except Exception:
         return _fallback_response(candidate, message)
 

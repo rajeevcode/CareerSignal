@@ -418,3 +418,46 @@ def save_jd_analysis(
             ),
         )
     return analysis_id
+
+
+# --- LLM spend ledger ------------------------------------------------------
+# Append-only record of every LLM call's token usage and computed USD cost. Used
+# by the global spend circuit-breaker (app.budget) to bound the provider bill.
+
+
+def record_llm_spend(
+    *,
+    model: str,
+    feature: str | None,
+    candidate_id: str | None,
+    prompt_tokens: int,
+    completion_tokens: int,
+    cost_usd: float,
+) -> None:
+    """Insert one spend row. Best-effort: never let bookkeeping break a request."""
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO llm_spend
+            (id, model, feature, candidate_id, prompt_tokens, completion_tokens, cost_usd, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+            (
+                str(uuid.uuid4()),
+                model,
+                feature,
+                candidate_id,
+                int(prompt_tokens or 0),
+                int(completion_tokens or 0),
+                cost_usd,
+                _now(),
+            ),
+        )
+
+
+def llm_spend_since(since_iso: str) -> float:
+    """Total USD spent across ALL users since `since_iso` (inclusive)."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT COALESCE(SUM(cost_usd), 0) AS total FROM llm_spend WHERE created_at >= %s",
+            (since_iso,),
+        ).fetchone()
+        return float(row["total"]) if row else 0.0

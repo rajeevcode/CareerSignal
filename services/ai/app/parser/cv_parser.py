@@ -9,7 +9,8 @@ from pydantic import BaseModel, Field
 from app.config import settings
 from app.matching.engine import generate_embedding
 from app.matching.skill_graph import extract_skills_from_text, normalize_skills
-from app.openai_client import get_openai, resolve_model
+from app.budget import BudgetExceeded
+from app.openai_client import chat_completion
 
 
 class ParsedExperience(BaseModel):
@@ -105,7 +106,6 @@ async def parse_cv_with_llm(text: str) -> ParsedCV:
     if not settings.openai_api_key:
         return _heuristic_parse(text)
 
-    client = get_openai()
     prompt = f"""Extract structured CV data from this resume text. Return JSON matching this schema:
 {{
   "name", "email", "phone", "location", "current_title", "total_experience_years",
@@ -119,19 +119,21 @@ Resume:
 {text[:12000]}"""
 
     try:
-        response = client.chat.completions.create(
-            model=resolve_model(settings.llm_model),
+        response = chat_completion(
             messages=[
                 {"role": "system", "content": "Extract CV data accurately. Return valid JSON only."},
                 {"role": "user", "content": prompt},
             ],
             response_format={"type": "json_object"},
             temperature=0.1,
+            feature="parse_cv",
         )
         data = json.loads(response.choices[0].message.content or "{}")
         parsed = ParsedCV.model_validate(data)
         parsed.skills = normalize_skills(parsed.skills + extract_skills_from_text(text))
         return parsed
+    except BudgetExceeded:
+        raise
     except Exception:
         return _heuristic_parse(text)
 

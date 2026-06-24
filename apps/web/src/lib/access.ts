@@ -1,5 +1,5 @@
 import 'server-only';
-import { eq } from 'drizzle-orm';
+import { eq, count } from 'drizzle-orm';
 import {
   getDb,
   subscriptions,
@@ -32,11 +32,22 @@ async function one<T>(query: Promise<T[]>): Promise<T | null> {
   return rows[0] ?? null;
 }
 
-/** Source of truth = DB (subscriptions.plan). */
+/**
+ * Source of truth for "is this user Pro?" = DB (subscriptions). A row only
+ * counts as Pro when plan='pro' AND status='active' — a cancelled/past_due
+ * subscription still has plan='pro' until the period ends, so checking plan
+ * alone would keep granting Pro features after the subscription lapses. This is
+ * the single definition; isProUser in services/billing defers to it.
+ */
 export async function getUserPlan(userId: string): Promise<PlanType> {
   const db = getDb();
-  const row = await one(db.select({ plan: subscriptions.plan }).from(subscriptions).where(eq(subscriptions.userId, userId)));
-  return row?.plan ?? 'free';
+  const row = await one(
+    db
+      .select({ plan: subscriptions.plan, status: subscriptions.status })
+      .from(subscriptions)
+      .where(eq(subscriptions.userId, userId)),
+  );
+  return row?.plan === 'pro' && row?.status === 'active' ? 'pro' : 'free';
 }
 
 export async function getTier(session: SessionPayload | null): Promise<Tier> {
@@ -48,8 +59,12 @@ async function countRows(
   table: typeof savedJobs | typeof cvUploads | typeof applications,
   candidateId: string,
 ): Promise<number> {
-  const rows = await getDb().select().from(table).where(eq(table.candidateId, candidateId));
-  return rows.length;
+  // COUNT(*) aggregate — don't materialize every row just to read .length.
+  const [row] = await getDb()
+    .select({ value: count() })
+    .from(table)
+    .where(eq(table.candidateId, candidateId));
+  return row?.value ?? 0;
 }
 
 /** Build the freemium PlanState for a user (live counts + monthly JD counter from usage_limits). */
@@ -62,10 +77,19 @@ export async function getPlanStateForUser(userId: string): Promise<PlanState> {
   ]);
   const month = currentMonth();
 
+  // Run the three live counts in parallel rather than serially awaiting each.
+  const [cvUploadCount, savedJobsCount, trackedApplicationsCount] = candidate
+    ? await Promise.all([
+        countRows(cvUploads, candidate.id),
+        countRows(savedJobs, candidate.id),
+        countRows(applications, candidate.id),
+      ])
+    : [0, 0, 0];
+
   const usageState: UsageState = {
-    cv_upload_count: candidate ? await countRows(cvUploads, candidate.id) : 0,
-    saved_jobs_count: candidate ? await countRows(savedJobs, candidate.id) : 0,
-    tracked_applications_count: candidate ? await countRows(applications, candidate.id) : 0,
+    cv_upload_count: cvUploadCount,
+    saved_jobs_count: savedJobsCount,
+    tracked_applications_count: trackedApplicationsCount,
     jd_match_count_monthly: usage && usage.currentMonth === month ? usage.jdMatchCountMonthly : 0,
     current_month: month,
   };

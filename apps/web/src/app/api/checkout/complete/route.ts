@@ -11,7 +11,12 @@ export async function POST() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_MOCK_CHECKOUT !== 'true') {
+  // Deny by default in EVERY environment. Mock Pro activation is unlocked only
+  // by an explicit opt-in flag — never inferred from NODE_ENV, which is unset or
+  // non-'production' on staging/preview deploys (where this route would
+  // otherwise hand out free Pro). In production, Pro must come from a verified
+  // payment webhook.
+  if (process.env.ALLOW_MOCK_CHECKOUT !== 'true') {
     return NextResponse.json(
       { error: 'Checkout is not available. Stripe is not configured.' },
       { status: 503 },

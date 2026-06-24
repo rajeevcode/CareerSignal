@@ -9,6 +9,7 @@ import { SocialAuthButtons } from '@/components/auth/SocialAuthButtons';
 import { AuthDivider } from '@/components/auth/AuthDivider';
 import { InlineFormError } from '@/components/auth/InlineFormError';
 import { FREE_LIMITS } from '@/lib/billing';
+import { safeRedirectPath } from '@/lib/utils';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -17,7 +18,10 @@ type FieldErrors = Partial<Record<'email' | 'password', string>>;
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get('redirect') || '/dashboard';
+  // Sanitize before use: this value flows into router.push() and into the OAuth
+  // redirect, so an attacker-supplied //evil.com / https://evil.com must not
+  // escape the origin.
+  const redirect = safeRedirectPath(searchParams.get('redirect'));
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(true);

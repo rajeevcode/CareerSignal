@@ -164,6 +164,14 @@ export async function loginUser(email: string, password: string) {
     email: email.toLowerCase(),
     password,
   });
-  if (error || !data.user) throw new Error('Invalid email or password');
+  if (error || !data.user) {
+    // An unconfirmed email is a distinct, recoverable state — telling the user
+    // their password is wrong leaves them with no way forward. Everything else
+    // stays generic so we don't reveal whether an account exists.
+    if (error && /email not confirmed|confirm your email|not confirmed/i.test(error.message)) {
+      throw new Error('Please confirm your email address before signing in. Check your inbox for the confirmation link.');
+    }
+    throw new Error('Invalid email or password');
+  }
   return getSessionPayloadForUser(data.user.id, data.user.email ?? email.toLowerCase());
 }

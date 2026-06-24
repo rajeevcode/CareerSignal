@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
-import { aiFetch } from '@/lib/utils';
+import { aiFetchBestEffort } from '@/lib/utils';
 import { getDb, jobs, companies, newId, toIsoNow } from '@careersignal/db';
 
 async function requireAdmin() {
@@ -46,15 +46,13 @@ export async function POST(request: Request) {
     updatedAt: now,
   });
 
-  try {
-    await aiFetch(`/parse-job`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ job_id: id }),
-    });
-  } catch {
-    // embedding optional at create time
-  }
+  // Embedding is optional at create time; aiFetchBestEffort never throws but
+  // logs token-drift / failures instead of swallowing them silently.
+  await aiFetchBestEffort(`/parse-job`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ job_id: id }),
+  });
 
   return NextResponse.json({ id });
 }

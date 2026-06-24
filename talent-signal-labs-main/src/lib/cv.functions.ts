@@ -142,16 +142,18 @@ export const completeOnboarding = createServerFn({ method: "POST" })
       onboarding_completed: true,
     });
 
-    // Bump CV upload usage counter (best-effort)
-    const { data: cur } = await supabase
-
+    // Recompute cv_upload_count from the live cvs rows (derived, not
+    // incremented, so it can't drift). usage_limits is no longer writable by the
+    // user's JWT (20260623000001_harden_rls_authz), so this goes through the
+    // service-role admin client, scoped to the caller's own user_id.
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { count: cvCount } = await supabaseAdmin
+      .from("cvs")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId);
+    await supabaseAdmin
       .from("usage_limits")
-      .select("cv_upload_count")
-      .eq("user_id", userId)
-      .maybeSingle();
-    await supabase
-      .from("usage_limits")
-      .upsert({ user_id: userId, cv_upload_count: (cur?.cv_upload_count ?? 0) + 1 });
+      .upsert({ user_id: userId, cv_upload_count: cvCount ?? 0 });
 
     return { ok: true, overall: ai.score.overall };
   });

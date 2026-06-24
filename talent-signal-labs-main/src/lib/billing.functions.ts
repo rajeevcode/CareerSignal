@@ -15,8 +15,20 @@ function monthKey() {
   return new Date().toISOString().slice(0, 7); // YYYY-MM
 }
 
-async function ensureUsage(supabase: any, userId: string): Promise<UsageRow> {
-  const { data, error } = await supabase
+// usage_limits is NOT user-writable (RLS revokes INSERT/UPDATE/DELETE from
+// `authenticated` in 20260623000001_harden_rls_authz). All counter mutations go
+// through the service-role admin client, which bypasses RLS — so a user cannot
+// reset their own quota by hitting /rest/v1 directly. We still scope every query
+// to `userId` (derived from the verified JWT), so the admin client only ever
+// touches the caller's own row.
+async function getAdmin() {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  return supabaseAdmin;
+}
+
+async function ensureUsage(userId: string): Promise<UsageRow> {
+  const admin = await getAdmin();
+  const { data, error } = await admin
     .from("usage_limits")
     .select("cv_upload_count, jd_match_count_monthly, saved_jobs_count, tracked_applications_count, current_month")
     .eq("user_id", userId)
@@ -24,7 +36,7 @@ async function ensureUsage(supabase: any, userId: string): Promise<UsageRow> {
   if (error) throw error;
   const m = monthKey();
   if (!data) {
-    const { data: inserted, error: e2 } = await supabase
+    const { data: inserted, error: e2 } = await admin
       .from("usage_limits")
       .insert({ user_id: userId, current_month: m })
       .select("cv_upload_count, jd_match_count_monthly, saved_jobs_count, tracked_applications_count, current_month")
@@ -34,7 +46,7 @@ async function ensureUsage(supabase: any, userId: string): Promise<UsageRow> {
   }
   // Roll over monthly counters
   if (data.current_month !== m) {
-    const { data: updated, error: e3 } = await supabase
+    const { data: updated, error: e3 } = await admin
       .from("usage_limits")
       .update({ jd_match_count_monthly: 0, current_month: m })
       .eq("user_id", userId)
@@ -50,7 +62,7 @@ export const getMyPlan = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<{ plan: PlanType; usage: UsageState; email: string | null }> => {
     const { supabase, userId, claims } = context;
-    const usage = await ensureUsage(supabase, userId);
+    const usage = await ensureUsage(userId);
     const { data: profile } = await supabase
       .from("profiles")
       .select("plan_type, subscription_status")
@@ -71,7 +83,7 @@ export const incrementUsage = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => incSchema.parse(d))
   .handler(async ({ context, data }) => {
     const { supabase, userId } = context;
-    const usage = await ensureUsage(supabase, userId);
+    const usage = await ensureUsage(userId);
     const { data: profile } = await supabase
       .from("profiles")
       .select("plan_type, subscription_status")
@@ -102,7 +114,8 @@ export const incrementUsage = createServerFn({ method: "POST" })
         throw new Error(`PAYWALL:track_application:Free plan tracks up to ${limits.trackedApplications} applications.`);
     }
 
-    const { error } = await supabase
+    const admin = await getAdmin();
+    const { error } = await admin
       .from("usage_limits")
       .update({
         cv_upload_count: next.cv_upload_count,
@@ -115,14 +128,32 @@ export const incrementUsage = createServerFn({ method: "POST" })
     return { usage: next, plan: (isPro ? "pro" : "free") as PlanType };
   });
 
-// DEV / placeholder: mark current user as Pro. Replace with Stripe webhook later.
+// Add one calendar month to `from`, clamping the day so end-of-month dates don't
+// overflow (Jan 31 + 1mo → Feb 28/29, not Mar 2/3 as setMonth would produce).
+function addOneMonth(from: Date): Date {
+  const d = new Date(from);
+  const day = d.getDate();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + 1);
+  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(day, lastDay));
+  return d;
+}
+
+// DEV / placeholder: mark current user as Pro. In production, Pro is granted
+// ONLY by a verified payment webhook — never by this self-serve endpoint. The
+// write uses the service-role client because profiles' billing columns are no
+// longer writable by the user's JWT (20260623000001_harden_rls_authz).
 export const activateProPlaceholder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { supabase, userId } = context;
-    const periodEnd = new Date();
-    periodEnd.setMonth(periodEnd.getMonth() + 1);
-    const { error } = await supabase
+    if (process.env.NODE_ENV === "production" && process.env.ALLOW_MOCK_CHECKOUT !== "true") {
+      throw new Error("PAYMENT_REQUIRED:Checkout is not available. Billing is not configured.");
+    }
+    const { userId } = context;
+    const periodEnd = addOneMonth(new Date());
+    const admin = await getAdmin();
+    const { error } = await admin
       .from("profiles")
       .update({
         plan_type: "pro",
@@ -138,8 +169,9 @@ export const activateProPlaceholder = createServerFn({ method: "POST" })
 export const cancelProPlaceholder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { supabase, userId } = context;
-    const { error } = await supabase
+    const { userId } = context;
+    const admin = await getAdmin();
+    const { error } = await admin
       .from("profiles")
       .update({ plan_type: "free", subscription_status: "cancelled" })
       .eq("id", userId);

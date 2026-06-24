@@ -12,8 +12,9 @@ export async function getSubscription(userId: string) {
 }
 
 export async function isProUser(userId: string): Promise<boolean> {
-  const sub = await getSubscription(userId);
-  return sub?.plan === 'pro' && sub?.status === 'active';
+  // Single source of truth — keep this in lockstep with the gating path.
+  const { getUserPlan } = await import('@/lib/access');
+  return (await getUserPlan(userId)) === 'pro';
 }
 
 /**

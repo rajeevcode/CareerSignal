@@ -2,6 +2,36 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+async function getAdmin() {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  return supabaseAdmin;
+}
+
+// Recompute usage_limits counters from the live applications rows. Derived (not
+// incremented/decremented) so counters can never drift out of sync with reality
+// across save / status-change / delete / de-dupe. Written via the service-role
+// client because usage_limits is no longer writable by the user's JWT
+// (20260623000001_harden_rls_authz).
+async function syncUsageCounters(userId: string): Promise<void> {
+  const admin = await getAdmin();
+  const [{ count: savedCount }, { count: totalCount }] = await Promise.all([
+    admin
+      .from("applications")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("status", "saved"),
+    admin
+      .from("applications")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId),
+  ]);
+  await admin.from("usage_limits").upsert({
+    user_id: userId,
+    saved_jobs_count: savedCount ?? 0,
+    tracked_applications_count: totalCount ?? 0,
+  });
+}
+
 export const PIPELINE_STATUSES = [
   "saved",
   "applied",
@@ -92,20 +122,25 @@ export const saveJobToPipeline = createServerFn({ method: "POST" })
       .maybeSingle();
     const isPro = profile?.plan_type === "pro" && profile?.subscription_status === "active";
     if (!isPro) {
-      const { count: savedCount } = await supabase
-        .from("applications")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", userId)
-        .eq("status", "saved");
-      if ((savedCount ?? 0) >= 5) {
-        throw new Error("PAYWALL:save_job:You've saved 5 jobs on the Free plan. Upgrade to Pro to save unlimited jobs.");
-      }
+      // The binding cap is the TOTAL number of tracked applications (every saved
+      // job is one application row). Gating on this — not on the count of rows
+      // still in `status='saved'` — closes the bypass where advancing an
+      // application off "saved" frees a slot and lets a Free user save without
+      // limit. The 5-saved figure is a sub-limit on jobs not yet acted on.
       const { count: totalCount } = await supabase
         .from("applications")
         .select("id", { count: "exact", head: true })
         .eq("user_id", userId);
       if ((totalCount ?? 0) >= 10) {
         throw new Error("PAYWALL:track_application:You're tracking 10 applications — the Free plan limit. Upgrade to Pro for unlimited.");
+      }
+      const { count: savedCount } = await supabase
+        .from("applications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("status", "saved");
+      if ((savedCount ?? 0) >= 5) {
+        throw new Error("PAYWALL:save_job:You have 5 un-acted jobs saved on the Free plan. Apply to or remove some, or upgrade to Pro to save unlimited jobs.");
       }
     }
 
@@ -121,17 +156,7 @@ export const saveJobToPipeline = createServerFn({ method: "POST" })
       .single();
     if (error) throw error;
 
-    // Bump usage counters (best-effort)
-    const { data: cur } = await supabase
-      .from("usage_limits")
-      .select("saved_jobs_count, tracked_applications_count")
-      .eq("user_id", userId)
-      .maybeSingle();
-    await supabase.from("usage_limits").upsert({
-      user_id: userId,
-      saved_jobs_count: (cur?.saved_jobs_count ?? 0) + 1,
-      tracked_applications_count: (cur?.tracked_applications_count ?? 0) + 1,
-    });
+    await syncUsageCounters(userId);
 
     return { id: inserted.id, created: true };
   });
@@ -155,6 +180,8 @@ export const updateApplicationStatus = createServerFn({ method: "POST" })
       .eq("id", data.id)
       .eq("user_id", userId);
     if (error) throw error;
+    // Moving a row in/out of "saved" changes saved_jobs_count.
+    await syncUsageCounters(userId);
     return { ok: true };
   });
 
@@ -170,5 +197,7 @@ export const deleteApplication = createServerFn({ method: "POST" })
       .eq("id", data.id)
       .eq("user_id", userId);
     if (error) throw error;
+    // Free the slot in the displayed quota (fixes counter drift on delete).
+    await syncUsageCounters(userId);
     return { ok: true };
   });

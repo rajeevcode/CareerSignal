@@ -20,6 +20,14 @@ import {
   type PolicySlug,
 } from "@/components/cs/policy";
 
+// SECURITY: the admin check below (has_role RPC + the isAdmin render gate) is
+// presentation only. The real authorization boundary is Postgres RLS: the
+// site_policies write policy requires has_role(auth.uid(),'admin') WITH CHECK,
+// so a non-admin who replays the UPDATE directly is rejected by the database.
+// site_policies SELECT is intentionally public (anon|authenticated GRANT), so
+// reading the rows here leaks nothing. INVARIANT: any admin-only DATA surfaced
+// from a route under _authenticated MUST be protected by an RLS policy on its
+// table — never rely on this client-side gate to keep data private.
 export const Route = createFileRoute("/_authenticated/admin-policies")({
   head: () => ({
     meta: [

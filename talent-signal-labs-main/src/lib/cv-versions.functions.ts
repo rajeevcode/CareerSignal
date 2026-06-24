@@ -89,9 +89,15 @@ export const applyRewritesAsNewVersion = createServerFn({ method: "POST" })
     for (const i of data.selectedIndexes) {
       const r = rewrites[i];
       if (!r) continue;
-      // Simple text replacement; if not found, append as suggested addition
-      if (text.includes(r.original)) {
-        text = text.replace(r.original, r.rewrite);
+      // Simple text replacement; if not found, append as suggested addition.
+      // Use a function replacer so r.rewrite is inserted LITERALLY — a string
+      // replacement would expand $&, $1, $$ etc. in the AI-generated rewrite and
+      // corrupt the CV. replaceAll covers bullets that appear more than once.
+      // Guard against an empty r.original (the LLM can omit it; it's coerced to
+      // "" upstream): replaceAll("", ...) inserts the rewrite between every
+      // character, so treat empty as "not found" and append instead.
+      if (r.original && text.includes(r.original)) {
+        text = text.replaceAll(r.original, () => r.rewrite);
         applied.push(r.rewrite);
       } else {
         text += `\n• ${r.rewrite}`;

@@ -13,8 +13,16 @@ const PROTECTED = [...PROTECTED_CANDIDATE_ROUTES, '/admin', '/recruiter'];
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
+  // Middleware runs server-side (inside the container in Docker), so it must use
+  // the server-reachable Supabase URL — NOT the browser-facing one. With
+  // NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321, 'localhost' resolves to the
+  // container itself and getUser() fails (ECONNREFUSED), bouncing every
+  // protected route back to /login even after a successful sign-in. Prefer the
+  // server-only SUPABASE_URL (e.g. http://host.docker.internal:54321) when set,
+  // matching createSupabaseServerClient.
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    supabaseUrl,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {

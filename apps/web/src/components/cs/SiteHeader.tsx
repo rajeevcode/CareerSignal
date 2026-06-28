@@ -8,6 +8,13 @@ import { cn } from '@/lib/utils';
 import { CSLogo } from './CSLogo';
 import { ThemeToggle } from '@/components/theme/ThemeProvider';
 
+type HeaderUser = {
+  email: string;
+  role: 'candidate' | 'recruiter' | 'admin';
+  plan: 'free' | 'pro';
+  full_name: string | null;
+};
+
 const navLinks = [
   { href: '/product', label: 'Product' },
   { href: '/cv-score', label: 'CV Score' },
@@ -18,9 +25,20 @@ const navLinks = [
   { href: '/pricing', label: 'Pricing' },
 ] as const;
 
-export function SiteHeader() {
+function dashboardHrefFor(user: HeaderUser) {
+  if (user.role === 'admin') return '/admin';
+  if (user.role === 'recruiter') return '/recruiter/dashboard';
+  return '/dashboard';
+}
+
+function displayNameFor(user: HeaderUser) {
+  return user.full_name?.split(' ')[0] || user.email.split('@')[0] || 'Account';
+}
+
+export function SiteHeader({ user }: { user?: HeaderUser | null }) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const dashboardHref = user ? dashboardHrefFor(user) : null;
 
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/80 backdrop-blur-md">
@@ -44,18 +62,29 @@ export function SiteHeader() {
 
         <div className="hidden items-center gap-2 md:flex">
           <ThemeToggle />
-          <Link
-            href="/login"
-            className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
-          >
-            Log in
-          </Link>
-          <Link
-            href="/register"
-            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary-hover"
-          >
-            Get started
-          </Link>
+          {user && dashboardHref ? (
+            <Link
+              href={dashboardHref}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary-hover"
+            >
+              {displayNameFor(user)}
+            </Link>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                className="rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+              >
+                Log in
+              </Link>
+              <Link
+                href="/register"
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary-hover"
+              >
+                Get started
+              </Link>
+            </>
+          )}
         </div>
 
         <button
@@ -86,20 +115,32 @@ export function SiteHeader() {
               </Link>
             ))}
             <div className="mt-2 grid grid-cols-2 gap-2">
-              <Link
-                href="/login"
-                onClick={() => setOpen(false)}
-                className="rounded-lg border border-border px-4 py-2 text-center text-sm font-semibold text-foreground hover:bg-muted"
-              >
-                Log in
-              </Link>
-              <Link
-                href="/register"
-                onClick={() => setOpen(false)}
-                className="rounded-lg bg-primary px-4 py-2 text-center text-sm font-semibold text-primary-foreground hover:bg-primary-hover"
-              >
-                Get started
-              </Link>
+              {user && dashboardHref ? (
+                <Link
+                  href={dashboardHref}
+                  onClick={() => setOpen(false)}
+                  className="col-span-2 rounded-lg bg-primary px-4 py-2 text-center text-sm font-semibold text-primary-foreground hover:bg-primary-hover"
+                >
+                  {displayNameFor(user)}
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    href="/login"
+                    onClick={() => setOpen(false)}
+                    className="rounded-lg border border-border px-4 py-2 text-center text-sm font-semibold text-foreground hover:bg-muted"
+                  >
+                    Log in
+                  </Link>
+                  <Link
+                    href="/register"
+                    onClick={() => setOpen(false)}
+                    className="rounded-lg bg-primary px-4 py-2 text-center text-sm font-semibold text-primary-foreground hover:bg-primary-hover"
+                  >
+                    Get started
+                  </Link>
+                </>
+              )}
             </div>
             <div className="mt-2 flex justify-end">
               <ThemeToggle />

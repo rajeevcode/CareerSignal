@@ -35,14 +35,19 @@ enabled = false
 [auth]
 enabled = true
 site_url = "http://localhost:3000"
-additional_redirect_urls = ["http://localhost:3000/auth/callback"]
+additional_redirect_urls = [
+  "http://localhost:3000/auth/callback",
+  "http://localhost:3003/auth/callback",
+  "http://localhost:3000/reset-password",
+  "http://localhost:3003/reset-password",
+]
 jwt_expiry = 3600
 enable_signup = true
 
 [auth.email]
 enable_signup = true
 double_confirm_changes = true
-enable_confirmations = false
+enable_confirmations = true
 
 # Google OAuth. Needs GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET exported into the
 # shell that runs `supabase start`, and http://localhost:54321/auth/v1/callback

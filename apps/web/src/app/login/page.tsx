@@ -22,9 +22,9 @@ function LoginForm() {
   // redirect, so an attacker-supplied //evil.com / https://evil.com must not
   // escape the origin.
   const redirect = safeRedirectPath(searchParams.get('redirect'));
+  const resetSucceeded = searchParams.get('reset') === 'success';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [remember, setRemember] = useState(true);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -44,23 +44,28 @@ function LoginForm() {
     setFieldErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
-    setLoading(true);
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
+    try {
+      setLoading(true);
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
 
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error || 'Login failed');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || 'Login failed');
+        return;
+      }
+
+      trackEvent('login', { method: 'email' });
+      router.push(redirect);
+      router.refresh();
+    } catch {
+      setError('Could not sign in. Check your connection and try again.');
+    } finally {
       setLoading(false);
-      return;
     }
-
-    trackEvent('login', { method: 'email' });
-    router.push(redirect);
-    router.refresh();
   }
 
   return (
@@ -74,42 +79,44 @@ function LoginForm() {
       <AuthDivider />
 
       <form onSubmit={handleSubmit} noValidate className="space-y-4">
+        {resetSucceeded && (
+          <p role="status" className="rounded-lg bg-success-soft p-3 text-sm text-success">
+            Your password was updated. Sign in with your new password.
+          </p>
+        )}
         {error && <p role="alert" className="rounded-lg bg-risk-soft p-3 text-sm text-risk">{error}</p>}
         <div>
           <label htmlFor="login-email" className="text-sm font-medium text-foreground">Email</label>
           <input
             id="login-email"
             type="email"
+            autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             aria-describedby="login-email-err"
+            aria-invalid={fieldErrors.email ? 'true' : undefined}
             className="mt-1 w-full rounded-lg border border-border px-3 py-2"
           />
           <InlineFormError id="login-email-err" message={fieldErrors.email} />
         </div>
         <div>
-          <label htmlFor="login-password" className="text-sm font-medium text-foreground">Password</label>
+          <div className="flex items-center justify-between gap-3">
+            <label htmlFor="login-password" className="text-sm font-medium text-foreground">Password</label>
+            <Link href="/forgot-password" className="text-xs font-semibold text-primary hover:underline">
+              Forgot password?
+            </Link>
+          </div>
           <input
             id="login-password"
             type="password"
+            autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             aria-describedby="login-password-err"
+            aria-invalid={fieldErrors.password ? 'true' : undefined}
             className="mt-1 w-full rounded-lg border border-border px-3 py-2"
           />
           <InlineFormError id="login-password-err" message={fieldErrors.password} />
-        </div>
-        <div className="flex items-center justify-between text-sm">
-          <label className="flex items-center gap-2 text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={remember}
-              onChange={(e) => setRemember(e.target.checked)}
-              className="h-4 w-4 rounded border-border"
-            />
-            Remember me
-          </label>
-          <Link href="/login" className="font-medium text-primary hover:underline">Forgot password?</Link>
         </div>
         <button
           type="submit"
@@ -124,7 +131,10 @@ function LoginForm() {
         Free account includes {FREE_LIMITS.cvUploads} CV uploads and {FREE_LIMITS.jdMatchesMonthly} JD matches per month.
       </p>
       <p className="mt-3 text-center text-sm text-muted-foreground">
-        New to CareerSignal? <Link href="/register" className="text-primary hover:underline">Create free account</Link>
+        New to CareerSignal?{' '}
+        <Link href={`/register?redirect=${encodeURIComponent(redirect)}`} className="text-primary hover:underline">
+          Create free account
+        </Link>
       </p>
     </AuthLayout>
   );

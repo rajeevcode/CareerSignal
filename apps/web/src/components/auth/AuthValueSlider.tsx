@@ -84,7 +84,13 @@ function useTweenedNumber(to: number, reduced: boolean) {
   return val;
 }
 
-export function AuthValueSlider({ className = '' }: { className?: string }) {
+export function AuthValueSlider({
+  className = '',
+  compact = false,
+}: {
+  className?: string;
+  compact?: boolean;
+}) {
   const [active, setActive] = useState(0);
   const [leaving, setLeaving] = useState(false);
   const [reduced, setReduced] = useState(false);
@@ -127,7 +133,7 @@ export function AuthValueSlider({ className = '' }: { className?: string }) {
 
   return (
     <div
-      className={`relative flex h-full min-h-[34rem] flex-col justify-center overflow-hidden rounded-3xl bg-gradient-to-br from-[#232a6c] via-[#2b3486] to-[#4650b0] p-8 text-white shadow-[0_30px_80px_-30px_rgba(35,42,108,0.55)] sm:p-10 ${className}`}
+      className={`relative flex h-full min-h-[34rem] flex-col justify-center overflow-hidden rounded-3xl bg-gradient-to-br from-[#232a6c] via-[#2b3486] to-[#4650b0] p-8 text-white shadow-[0_30px_80px_-30px_rgba(35,42,108,0.55)] sm:p-10 ${compact ? 'p-5 sm:p-6' : ''} ${className}`}
       onMouseEnter={() => { pausedRef.current = true; }}
       onMouseLeave={() => { pausedRef.current = false; }}
       onFocusCapture={() => { pausedRef.current = true; }}
@@ -145,21 +151,23 @@ export function AuthValueSlider({ className = '' }: { className?: string }) {
 
       {/* Heading */}
       <div className={`transition-all duration-500 ease-out ${fade}`}>
-        <h2 className="text-2xl font-extrabold leading-snug tracking-tight sm:text-3xl">{TITLE}</h2>
-        <p className="mt-3 max-w-sm text-sm leading-relaxed text-[#b9c0ee] sm:text-base">{DESC}</p>
+        <h2 className={`${compact ? 'text-xl' : 'text-2xl sm:text-3xl'} font-extrabold leading-snug tracking-tight`}>
+          {TITLE}
+        </h2>
+        {!compact && <p className="mt-3 max-w-sm text-sm leading-relaxed text-[#b9c0ee] sm:text-base">{DESC}</p>}
       </div>
 
       {/* Score panel */}
       <div
         aria-live="polite"
-        className={`relative mt-8 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06] p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition-all duration-500 ease-out sm:p-7 ${fade}`}
+        className={`relative ${compact ? 'mt-5 p-4' : 'mt-8 p-6 sm:p-7'} overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition-all duration-500 ease-out ${fade}`}
       >
         {/* moving sheen */}
         <div aria-hidden className="cv-sheen pointer-events-none absolute top-0 h-full w-1/2 -skew-x-12" />
 
         <div className="flex items-baseline justify-between gap-4">
-          <span className="text-base text-[#b9c0ee] sm:text-lg">{slide.label}</span>
-          <span className="text-2xl font-extrabold tabular-nums tracking-tight sm:text-3xl">
+          <span className={`${compact ? 'text-sm' : 'text-base sm:text-lg'} text-[#b9c0ee]`}>{slide.label}</span>
+          <span className={`${compact ? 'text-xl' : 'text-2xl sm:text-3xl'} font-extrabold tabular-nums tracking-tight`}>
             {before} <span className="mx-1 font-semibold text-white/70">→</span>
             <span className="text-[#2faf5b]">{after}</span>
             <span className="text-[0.6em] font-bold text-white/55">/100</span>
@@ -167,7 +175,7 @@ export function AuthValueSlider({ className = '' }: { className?: string }) {
         </div>
 
         {/* Before bar */}
-        <div className="mt-5">
+        <div className={compact ? 'mt-4' : 'mt-5'}>
           <div className="mb-2 flex justify-between text-sm text-[#b9c0ee]">
             <span>Before</span>
             <span className="font-semibold tabular-nums text-white">{before}</span>
@@ -181,7 +189,7 @@ export function AuthValueSlider({ className = '' }: { className?: string }) {
         </div>
 
         {/* After bar */}
-        <div className="mt-4">
+        <div className={compact ? 'mt-3' : 'mt-4'}>
           <div className="mb-2 flex justify-between text-sm text-[#b9c0ee]">
             <span>After improvements</span>
             <span className="font-semibold tabular-nums text-white">{after}</span>
@@ -198,7 +206,7 @@ export function AuthValueSlider({ className = '' }: { className?: string }) {
       </div>
 
       {/* Pagination dots */}
-      <div className="mt-8 flex items-center gap-2.5" role="tablist" aria-label="Choose preview">
+      <div className={`${compact ? 'mt-5' : 'mt-8'} flex items-center gap-2.5`} role="tablist" aria-label="Choose preview">
         {SLIDES.map((s, i) => (
           <button
             key={s.label}

@@ -134,7 +134,16 @@ export async function clearSessionCookie() {
   await supabase.auth.signOut();
 }
 
-export async function registerUser(email: string, password: string, fullName: string) {
+export interface RegisterResult {
+  session: SessionPayload;
+  confirmationRequired: boolean;
+}
+
+export async function registerUser(
+  email: string,
+  password: string,
+  fullName: string,
+): Promise<RegisterResult> {
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.signUp({
     email: email.toLowerCase(),
@@ -155,7 +164,10 @@ export async function registerUser(email: string, password: string, fullName: st
   // The on_auth_user_created trigger creates profile/candidate/usage/subscription.
   const userId = data.user?.id;
   if (!userId) throw new Error('Registration failed');
-  return getSessionPayloadForUser(userId, email.toLowerCase(), 'candidate');
+  return {
+    session: await getSessionPayloadForUser(userId, email.toLowerCase(), 'candidate'),
+    confirmationRequired: !data.session,
+  };
 }
 
 export async function loginUser(email: string, password: string) {

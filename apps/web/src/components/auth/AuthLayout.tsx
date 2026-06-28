@@ -9,22 +9,21 @@ import { AuthValueSlider } from './AuthValueSlider';
 export function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-2 lg:items-stretch lg:gap-10 lg:py-16">
-      {/* Left value panel — full height on desktop, compact above form on mobile */}
-      <div className="order-1 lg:order-none">
-        <div className="lg:hidden">
-          <AuthValueSlider className="min-h-0" />
-        </div>
-        <div className="hidden h-full lg:block">
-          <AuthValueSlider />
-        </div>
-      </div>
-
-      {/* Right form column */}
-      <div className="order-2 flex items-center lg:order-none">
+      {/* Form first on mobile; proof panel returns to the left on desktop. */}
+      <div className="order-1 flex items-center lg:order-2">
         <div className="w-full">
           <div className="mx-auto w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
             {children}
           </div>
+        </div>
+      </div>
+
+      <div className="order-2 lg:order-1">
+        <div className="lg:hidden">
+          <AuthValueSlider className="min-h-[14rem]" compact />
+        </div>
+        <div className="hidden h-full lg:block">
+          <AuthValueSlider />
         </div>
       </div>
     </div>

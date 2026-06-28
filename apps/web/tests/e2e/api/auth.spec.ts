@@ -86,4 +86,26 @@ test.describe('Auth (P0/P1)', () => {
     expect((await res.json()).error).toMatch(/missing required fields/i);
     await ctx.dispose();
   });
+
+  test('AUTH-07 malformed login payload → 400', async () => {
+    const ctx = await guestContext();
+    const res = await ctx.post('/api/auth/login', {
+      headers: { 'content-type': 'application/json' },
+      data: 'not-json',
+    });
+    expect(res.status()).toBe(400);
+    expect((await res.json()).error).toMatch(/email and password are required/i);
+    await ctx.dispose();
+  });
+
+  test('AUTH-08 malformed signup payload → 400', async () => {
+    const ctx = await guestContext();
+    const res = await ctx.post('/api/auth/register', {
+      headers: { 'content-type': 'application/json' },
+      data: 'not-json',
+    });
+    expect(res.status()).toBe(400);
+    expect((await res.json()).error).toMatch(/missing required fields/i);
+    await ctx.dispose();
+  });
 });

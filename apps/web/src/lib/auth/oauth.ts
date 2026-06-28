@@ -1,6 +1,7 @@
 'use client';
 
 import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { safeRedirectPath } from '@/lib/utils';
 
 export type OAuthResult = { ok: boolean; error?: string };
 
@@ -8,8 +9,30 @@ export type OAuthResult = { ok: boolean; error?: string };
 const NOT_CONFIGURED = "Social login isn't set up yet. Please use email instead.";
 
 function buildRedirectTo(redirect?: string): string {
-  const dest = redirect && redirect.startsWith('/') ? redirect : '/dashboard';
+  const dest = safeRedirectPath(redirect);
   return `${window.location.origin}/auth/callback?redirect=${encodeURIComponent(dest)}`;
+}
+
+async function providerIsEnabled(provider: 'google' | 'linkedin_oidc'): Promise<boolean> {
+  try {
+    if (provider === 'google' && process.env.NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED !== 'true') {
+      return false;
+    }
+    if (provider === 'linkedin_oidc' && process.env.NEXT_PUBLIC_LINKEDIN_OIDC_ENABLED !== 'true') {
+      return false;
+    }
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    if (!supabaseUrl) return false;
+    const res = await fetch(`${supabaseUrl}/auth/v1/settings`, {
+      headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '' },
+    });
+    if (!res.ok) return false;
+    const settings = await res.json();
+    return settings?.external?.[provider] === true;
+  } catch {
+    return false;
+  }
 }
 
 async function startOAuth(
@@ -17,10 +40,10 @@ async function startOAuth(
   redirect?: string,
 ): Promise<OAuthResult> {
   try {
+    const enabled = await providerIsEnabled(provider);
+    if (!enabled) return { ok: false, error: NOT_CONFIGURED };
+
     const supabase = createSupabaseBrowserClient();
-    // skipBrowserRedirect: build the authorize URL but don't navigate yet, so we
-    // can probe it first. A disabled provider returns 400 from /authorize — without
-    // this we'd hard-navigate the tab to that 400 page instead of showing a message.
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: { redirectTo: buildRedirectTo(redirect), skipBrowserRedirect: true },
@@ -32,16 +55,6 @@ async function startOAuth(
       return { ok: false, error: error.message };
     }
     if (!data?.url) return { ok: false, error: NOT_CONFIGURED };
-
-    // Probe the authorize endpoint. If the provider is disabled it 400s; the IdP
-    // redirect (302) is opaque under no-cors, which is the success signal here.
-    try {
-      const probe = await fetch(data.url, { method: 'GET', redirect: 'manual' });
-      // status 0 = opaqueredirect (provider enabled → off to the IdP). 4xx = disabled.
-      if (probe.status >= 400) return { ok: false, error: NOT_CONFIGURED };
-    } catch {
-      // Network/CORS quirk — fall through and let the real navigation try.
-    }
 
     window.location.assign(data.url);
     return { ok: true };

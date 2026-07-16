@@ -5,6 +5,12 @@
 #
 # Compose auto-merges this file:  docker compose up --build
 services:
+  migrate:
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      SUPABASE_DB_URL: postgresql://postgres:postgres@host.docker.internal:54322/postgres
+
   ai:
     extra_hosts:
       - "host.docker.internal:host-gateway"

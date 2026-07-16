@@ -52,11 +52,12 @@ See [ROADMAP.md](./ROADMAP.md) for Phase C–E deferred features.
 
 ## Docker Compose
 
-Copy env and set your OpenAI key:
+Copy the environment template and configure Supabase plus the AI provider:
 
 ```bash
 cp .env.example .env
-# Edit .env — at minimum OPENAI_API_KEY and AUTH_SECRET
+# Edit .env — set the Supabase URLs/keys, SUPABASE_DB_URL,
+# OPENAI_API_KEY, and a strong shared INTERNAL_API_TOKEN.
 ```
 
 **Development** (hot reload for web + AI):
@@ -70,10 +71,23 @@ docker compose up --build
 - Web: http://localhost:3000  
 - AI: http://localhost:8000  
 
-**Production-style** (optimized Next.js standalone image):
+**Production** (minimal standalone web image, non-root AI image, migrations,
+health checks, read-only containers, and private service networking):
 
 ```bash
-mkdir -p data/uploads
-docker compose -f docker-compose.prod.yml --profile setup run --rm migrate
-docker compose -f docker-compose.prod.yml up --build -d
+docker compose -f docker-compose.prod.yml build --no-cache
+docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml ps
 ```
+
+To run that production stack against the local Supabase CLI containers, merge
+the local host-network override:
+
+```bash
+docker compose -f docker-compose.prod.yml -f docker-compose.override.yml up -d
+```
+
+The one-shot `migrate` service applies each SQL file in `supabase/migrations`
+once and records it in `public.careersignal_schema_migrations`. Supabase Auth,
+Storage, PostgREST, and Postgres remain supplied by your configured Supabase
+project; the application containers do not expose the AI service publicly.

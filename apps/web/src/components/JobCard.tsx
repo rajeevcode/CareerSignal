@@ -25,7 +25,7 @@ function CardBody({ job, showMatch }: { job: Props['job']; showMatch: boolean })
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-lg font-semibold text-foreground">{job.title}</h3>
+            <h3 className="text-base font-semibold leading-snug text-foreground sm:text-lg">{job.title}</h3>
             {showMatch && score != null && <JobMatchBadge score={score} />}
             {showMatch && probLabel && (
               <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -56,10 +56,10 @@ function CardBody({ job, showMatch }: { job: Props['job']; showMatch: boolean })
               <span className="rounded-full bg-accent px-2 py-0.5 text-xs text-accent-foreground">Visa sponsorship</span>
             )}
           </div>
-          <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{job.description.slice(0, 180)}...</p>
+          <p className="mt-2 line-clamp-2 text-sm leading-6 text-muted-foreground">{job.description.slice(0, 180)}...</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {(job.required_skills || []).slice(0, 4).map((skill) => (
-              <span key={skill} className="rounded-full bg-accent px-2 py-0.5 text-xs text-accent-foreground">{skill}</span>
+              <span key={skill} className="rounded-md border border-border bg-accent px-2 py-1 text-xs font-medium text-accent-foreground">{skill}</span>
             ))}
           </div>
           {showMatch && job.missing_skills && job.missing_skills.length > 0 && (
@@ -85,7 +85,7 @@ export function JobCard({ job, showMatch = false, guestPreview = false }: Props)
 
   if (guestPreview) {
     return (
-      <div className="card-surface block p-5">
+      <div className="panel-surface block p-5">
         <div className="mb-3 flex items-center justify-between">
           <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             Preview
@@ -118,7 +118,7 @@ export function JobCard({ job, showMatch = false, guestPreview = false }: Props)
   }
 
   return (
-    <Link href={`/jobs/${job.id}`} className="card-surface block p-5 transition-shadow hover:shadow-md">
+    <Link href={`/jobs/${job.id}`} className="panel-surface block p-5 transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-elevated)]">
       <CardBody job={job} showMatch={showMatch} />
     </Link>
   );

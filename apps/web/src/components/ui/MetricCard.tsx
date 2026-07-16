@@ -26,16 +26,16 @@ const valueAccents = {
 
 export function MetricCard({ label, value, hint, icon: Icon, accent = 'neutral', className }: Props) {
   return (
-    <div className={cn('card-surface flex flex-col gap-2 p-5', className)}>
+    <div className={cn('panel-surface flex min-h-32 flex-col justify-between gap-3 p-4', className)}>
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>
         {Icon && (
-          <span className={cn('grid h-8 w-8 place-items-center rounded-md', accents[accent])}>
+          <span className={cn('grid h-8 w-8 place-items-center rounded-md border border-border/60', accents[accent])}>
             <Icon className="h-4 w-4" />
           </span>
         )}
       </div>
-      <div className={cn('text-3xl font-bold tracking-tight', valueAccents[accent])}>{value}</div>
+      <div className={cn('text-2xl font-semibold leading-none sm:text-3xl', valueAccents[accent])}>{value}</div>
       {hint && <div className="text-xs text-muted-foreground">{hint}</div>}
     </div>
   );

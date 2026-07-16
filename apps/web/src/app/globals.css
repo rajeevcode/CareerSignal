@@ -10,21 +10,21 @@
  */
 
 :root {
-  --radius: 0.75rem;
+  --radius: 0.5rem;
 
   /* Surfaces */
-  --background: oklch(0.985 0.004 240); /* near-white #F8FAFC */
-  --foreground: oklch(0.18 0.03 265); /* deep navy text */
+  --background: oklch(0.982 0.004 248);
+  --foreground: oklch(0.17 0.025 255);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.18 0.03 265);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.18 0.03 265);
 
   /* Primary — deep indigo/navy */
-  --primary: oklch(0.32 0.13 268);
+  --primary: oklch(0.34 0.115 258);
   --primary-foreground: oklch(0.99 0.005 240);
-  --primary-glow: oklch(0.55 0.2 268);
-  --primary-hover: oklch(0.27 0.13 268);
+  --primary-glow: oklch(0.54 0.15 258);
+  --primary-hover: oklch(0.29 0.12 258);
 
   /* Secondary — cool slate */
   --secondary: oklch(0.96 0.008 250);
@@ -33,8 +33,8 @@
   --muted: oklch(0.96 0.008 250);
   --muted-foreground: oklch(0.5 0.025 255);
 
-  --accent: oklch(0.95 0.025 268);
-  --accent-foreground: oklch(0.28 0.1 268);
+  --accent: oklch(0.946 0.018 250);
+  --accent-foreground: oklch(0.24 0.055 258);
 
   /* Signals */
   --success: oklch(0.58 0.15 155); /* emerald */
@@ -84,10 +84,10 @@
   --radius-card: var(--radius);
 
   /* Elevation */
-  --shadow-elegant: 0 1px 2px 0 oklch(0.2 0.04 265 / 0.04), 0 8px 24px -8px oklch(0.2 0.04 265 / 0.08);
-  --shadow-card: 0 1px 3px 0 oklch(0.2 0.04 265 / 0.05), 0 1px 2px -1px oklch(0.2 0.04 265 / 0.05);
-  --shadow-glow: 0 20px 60px -20px oklch(0.35 0.18 265 / 0.35);
-  --shadow-elevated: 0 10px 15px -3px oklch(0.2 0.04 265 / 0.08), 0 4px 6px -4px oklch(0.2 0.04 265 / 0.08);
+  --shadow-elegant: 0 1px 2px oklch(0.2 0.04 265 / 0.05), 0 14px 38px -28px oklch(0.2 0.04 265 / 0.32);
+  --shadow-card: 0 1px 2px oklch(0.2 0.04 265 / 0.05);
+  --shadow-glow: 0 22px 58px -30px oklch(0.35 0.15 260 / 0.4);
+  --shadow-elevated: 0 10px 24px -18px oklch(0.2 0.04 265 / 0.35);
 }
 
 .dark {
@@ -216,7 +216,9 @@
   }
 
   body {
-    background-color: var(--color-background);
+    background:
+      linear-gradient(180deg, color-mix(in oklab, var(--secondary) 58%, transparent), transparent 380px),
+      var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
     font-feature-settings: "cv11", "ss01";
@@ -228,7 +230,7 @@
   h4,
   h5,
   h6 {
-    letter-spacing: -0.02em;
+    letter-spacing: 0;
   }
 
   *:focus-visible {
@@ -242,6 +244,47 @@
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow-card);
+}
+
+.panel-surface {
+  background: color-mix(in oklab, var(--card) 92%, var(--background));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-card);
+}
+
+.input-surface {
+  background: var(--card);
+  border: 1px solid var(--input);
+  border-radius: var(--radius);
+  color: var(--foreground);
+  transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
+}
+
+.input-surface:focus {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--ring) 16%, transparent);
+  outline: none;
+}
+
+.eyebrow {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1rem;
+  text-transform: uppercase;
+}
+
+.app-page {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 1180px;
+}
+
+.section-grid {
+  display: grid;
+  gap: 1rem;
 }
 
 .btn-primary {

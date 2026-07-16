@@ -16,5 +16,10 @@ __pycache__
 dist
 **/dist
 .cursor
+.vscode
+tmp
+Website layout iteration*
+**/test-results
+**/playwright-report
 *.md
 !README.md

@@ -8,11 +8,11 @@ import { AuthValueSlider } from './AuthValueSlider';
  */
 export function AuthLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-2 lg:items-stretch lg:gap-10 lg:py-16">
+    <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[0.95fr_1.05fr] lg:items-stretch lg:gap-10 lg:py-16">
       {/* Form first on mobile; proof panel returns to the left on desktop. */}
       <div className="order-1 flex items-center lg:order-2">
         <div className="w-full">
-          <div className="mx-auto w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
+          <div className="mx-auto w-full max-w-md rounded-lg border border-border bg-card p-6 shadow-[var(--shadow-elegant)] sm:p-8">
             {children}
           </div>
         </div>

@@ -191,30 +191,83 @@ function Modules() {
   );
 }
 
-const journeySteps = ['Upload CV', 'Get Score', 'Match JD', 'Improve CV', 'Apply', 'Track', 'Prepare'];
+const journeySteps = [
+  { title: 'Upload CV', description: 'Add your current CV', href: '/cv-score' },
+  { title: 'Get score', description: 'Understand your readiness', href: '/cv-score' },
+  { title: 'Match JD', description: 'Compare against a target role', href: '/jd-match' },
+  { title: 'Improve CV', description: 'Fix the most important gaps', href: '/cv-score' },
+  { title: 'Apply', description: 'Submit the stronger version', href: '/jobs' },
+  { title: 'Track', description: 'Manage progress and follow-ups', href: '/applications' },
+  { title: 'Prepare', description: 'Build interview readiness', href: '/interview-prep' },
+] as const;
+
+function JourneyStep({ step, index, compact = false }: { step: (typeof journeySteps)[number]; index: number; compact?: boolean }) {
+  return (
+    <li className="relative min-w-0">
+      <Link
+        href={step.href}
+        className="group flex min-w-0 flex-col items-center text-center focus-visible:outline-none"
+      >
+        <span
+          aria-hidden
+          className="relative z-10 grid h-11 w-11 place-items-center rounded-full bg-primary text-sm font-bold text-primary-foreground ring-4 ring-secondary transition-transform group-hover:-translate-y-0.5 group-focus-visible:ring-ring/30"
+        >
+          {index + 1}
+        </span>
+        <span className={`${compact ? 'mt-3 text-[15px]' : 'mt-4 text-base'} font-semibold leading-tight text-foreground group-hover:text-primary`}>
+          {step.title}
+        </span>
+        <span className={`${compact ? 'mt-1 text-xs leading-[1.35]' : 'mt-1.5 text-[13px] leading-[1.45]'} max-w-[150px] text-muted-foreground`}>
+          {step.description}
+        </span>
+      </Link>
+    </li>
+  );
+}
 
 function Journey() {
   return (
     <section className="border-y border-border bg-secondary/40">
-      <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6">
+      <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 md:py-16 lg:py-24">
         <div className="mx-auto max-w-2xl text-center">
-          <div className="text-xs font-semibold uppercase tracking-wider text-primary">The candidate journey</div>
+          <div className="text-xs font-semibold uppercase tracking-wider text-primary">How it works</div>
           <h2 className="mt-2 text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
             A repeated improvement loop, not a one-time scan
           </h2>
         </div>
 
-        <div className="mt-10 overflow-x-auto">
-          <ol className="mx-auto flex min-w-max items-center justify-center gap-2 sm:gap-3">
-            {journeySteps.map((step, i) => (
-              <li key={step} className="flex items-center gap-2 sm:gap-3">
-                <div className="flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 shadow-sm">
-                  <span className="grid h-6 w-6 place-items-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-                    {i + 1}
+        <div className="relative mt-14 hidden lg:block lg:mt-16">
+          <div aria-hidden className="absolute left-[7.142857%] right-[7.142857%] top-[21px] h-px bg-border" />
+          <ol className="relative grid min-w-0 grid-cols-7">
+            {journeySteps.map((step, index) => <JourneyStep key={step.title} step={step} index={index} />)}
+          </ol>
+        </div>
+
+        <div className="relative mt-12 hidden md:block lg:hidden">
+          <div aria-hidden className="absolute left-[12.5%] right-[12.5%] top-[21px] h-px bg-border" />
+          <div aria-hidden className="absolute left-[12.5%] right-[37.5%] top-[177px] h-px bg-border" />
+          <ol className="relative grid min-w-0 grid-cols-4 gap-y-10">
+            {journeySteps.map((step, index) => <JourneyStep key={step.title} step={step} index={index} compact />)}
+          </ol>
+        </div>
+
+        <div className="relative mt-10 md:hidden">
+          <div aria-hidden className="absolute bottom-5 left-[21px] top-5 w-px bg-border" />
+          <ol className="relative space-y-7 pl-1">
+            {journeySteps.map((step, index) => (
+              <li key={step.title} className="relative">
+                <Link
+                  href={step.href}
+                  className="group grid grid-cols-[44px_1fr] items-start gap-4 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4"
+                >
+                  <span aria-hidden className="relative z-10 grid h-11 w-11 place-items-center rounded-full bg-primary text-sm font-bold text-primary-foreground ring-4 ring-secondary">
+                    {index + 1}
                   </span>
-                  <span className="text-sm font-medium text-foreground">{step}</span>
-                </div>
-                {i < journeySteps.length - 1 && <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
+                  <span className="min-w-0 pt-0.5">
+                    <span className="block text-base font-semibold text-foreground group-hover:text-primary">{step.title}</span>
+                    <span className="mt-1 block text-[13px] leading-5 text-muted-foreground">{step.description}</span>
+                  </span>
+                </Link>
               </li>
             ))}
           </ol>

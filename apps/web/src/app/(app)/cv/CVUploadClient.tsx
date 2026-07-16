@@ -54,9 +54,14 @@ export function CVUploadClient({ candidateId, existingCvs }: Props) {
   }, [candidateId, router]);
 
   return (
-    <>
-      <h1 className="text-2xl font-bold text-foreground">My CV</h1>
-      <p className="mt-1 text-muted-foreground">Upload your resume to unlock AI matching and interview probability scores</p>
+    <div className="app-page">
+      <div className="mb-6 border-b border-border pb-5">
+        <p className="eyebrow">Source of truth</p>
+        <h1 className="mt-2 text-2xl font-semibold leading-tight text-foreground sm:text-3xl">My CV</h1>
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
+          Upload your resume to unlock AI matching and interview probability scores.
+        </p>
+      </div>
 
       <div
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -67,7 +72,7 @@ export function CVUploadClient({ candidateId, existingCvs }: Props) {
           const file = e.dataTransfer.files[0];
           if (file) handleFile(file);
         }}
-        className={`mt-8 rounded-xl border-2 border-dashed p-12 text-center transition-colors ${
+        className={`rounded-lg border-2 border-dashed p-8 text-center transition-colors sm:p-12 ${
           dragOver ? 'border-primary bg-accent' : 'border-border bg-card'
         }`}
       >
@@ -80,7 +85,7 @@ export function CVUploadClient({ candidateId, existingCvs }: Props) {
           {uploading ? 'Parsing your CV...' : 'Drag & drop your CV here'}
         </p>
         <p className="mt-1 text-sm text-muted-foreground">PDF or DOCX, max 10MB</p>
-        <label className="mt-4 inline-block cursor-pointer rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground hover:bg-primary-hover">
+        <label className="mt-5 inline-flex h-10 cursor-pointer items-center justify-center rounded-md bg-primary px-5 text-sm font-semibold text-primary-foreground hover:bg-primary-hover">
           Browse files
           <input
             type="file"
@@ -99,12 +104,19 @@ export function CVUploadClient({ candidateId, existingCvs }: Props) {
 
       {existingCvs.length > 0 && (
         <div className="mt-8">
-          <h2 className="font-semibold text-foreground">Uploaded CVs</h2>
+          <div className="mb-4 flex items-center justify-between border-b border-border pb-3">
+            <div>
+              <p className="eyebrow">Versions</p>
+              <h2 className="mt-1 font-semibold text-foreground">Uploaded CVs</h2>
+            </div>
+          </div>
           <div className="mt-4 space-y-3">
             {existingCvs.map((cv) => (
-              <div key={cv.id} className="flex items-center justify-between rounded-lg border border-border bg-card p-4">
+              <div key={cv.id} className="panel-surface flex items-center justify-between p-4">
                 <div className="flex items-center gap-3">
-                  <FileText className="h-5 w-5 text-muted-foreground" />
+                  <span className="grid h-10 w-10 place-items-center rounded-md bg-accent text-accent-foreground">
+                    <FileText className="h-5 w-5" />
+                  </span>
                   <div>
                     <p className="font-medium text-foreground">{cv.file_name}</p>
                     <p className="text-xs text-muted-foreground">
@@ -119,6 +131,6 @@ export function CVUploadClient({ candidateId, existingCvs }: Props) {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

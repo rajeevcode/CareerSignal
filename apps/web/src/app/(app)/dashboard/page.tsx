@@ -15,7 +15,7 @@ import {
   listCandidateSkills,
   getProbabilityMapByCategory,
 } from '@/lib/queries';
-import { Activity, Heart, Send, Target, TrendingUp, Upload } from 'lucide-react';
+import { Activity, ArrowRight, CheckCircle2, Heart, Send, Target, TrendingUp, Upload } from 'lucide-react';
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
@@ -49,10 +49,20 @@ export default async function DashboardPage() {
   ].filter(Boolean) as string[];
 
   return (
-    <>
+    <div className="app-page">
       <PageHeader
         title={`${greeting}, ${firstName}. Your job search signal is improving.`}
         subtitle="Build your CV. Match any job. Know your interview signal."
+        actions={
+          <>
+            <Link href="/cv" className="inline-flex h-10 items-center justify-center rounded-md border border-border bg-card px-4 text-sm font-semibold text-foreground hover:bg-muted">
+              Upload CV
+            </Link>
+            <Link href="/jd-match-tool" className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary-hover">
+              Match a JD <ArrowRight className="h-4 w-4" />
+            </Link>
+          </>
+        }
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
@@ -65,11 +75,22 @@ export default async function DashboardPage() {
       </div>
 
       {actions.length > 0 && (
-        <div className="mt-8 card-surface p-5">
-          <h2 className="font-semibold text-foreground">Today&apos;s next best actions</h2>
-          <ol className="mt-3 space-y-2">
+        <div className="mt-6 panel-surface p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="eyebrow">Priority queue</p>
+              <h2 className="mt-1 text-lg font-semibold text-foreground">Today&apos;s next best actions</h2>
+            </div>
+            <span className="rounded-full border border-border bg-background px-3 py-1 text-xs font-semibold text-muted-foreground">
+              {actions.length} recommended
+            </span>
+          </div>
+          <ol className="mt-4 grid gap-2 sm:grid-cols-2">
             {actions.map((a, i) => (
-              <li key={a} className="flex gap-2 text-sm text-foreground"><span className="font-semibold text-primary">{i + 1}.</span>{a}</li>
+              <li key={a} className="flex items-start gap-3 rounded-md border border-border bg-card p-3 text-sm text-foreground">
+                <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">{i + 1}</span>
+                <span className="leading-6">{a}</span>
+              </li>
             ))}
           </ol>
         </div>
@@ -80,38 +101,58 @@ export default async function DashboardPage() {
       </div>
 
       {candidate.careerGoal && (
-        <div className="mt-8 card-surface p-5">
-          <h2 className="font-semibold text-foreground">Career goal</h2>
+        <div className="mt-6 panel-surface p-5">
+          <p className="eyebrow">North star</p>
+          <h2 className="mt-1 font-semibold text-foreground">Career goal</h2>
           <p className="mt-2 text-sm text-muted-foreground">{candidate.careerGoal}</p>
         </div>
       )}
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-2">
-        <div className="card-surface p-5">
-          <h2 className="font-semibold">CV improvement areas</h2>
-          <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-            <li>• Make AI product ownership more visible</li>
-            <li>• Clarify visa and relocation preferences</li>
-            <li>• Add stronger business impact metrics</li>
+      <div className="mt-6 grid gap-4 lg:grid-cols-2">
+        <div className="panel-surface p-5">
+          <p className="eyebrow">CV quality</p>
+          <h2 className="mt-1 font-semibold">Improvement areas</h2>
+          <ul className="mt-4 space-y-3 text-sm text-muted-foreground">
+            {['Make AI product ownership more visible', 'Clarify visa and relocation preferences', 'Add stronger business impact metrics'].map((item) => (
+              <li key={item} className="flex items-start gap-2">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <span>{item}</span>
+              </li>
+            ))}
           </ul>
-          <Link href="/resume-score" className="mt-4 inline-block text-sm text-primary hover:underline">Full CV Score →</Link>
+          <Link href="/resume-score" className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline">
+            Full CV Score <ArrowRight className="h-4 w-4" />
+          </Link>
         </div>
-        <div className="card-surface p-5">
-          <h2 className="font-semibold">Progress timeline</h2>
-          <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-            <li><strong>Week 1:</strong> Fix CV</li>
-            <li><strong>Week 2:</strong> Apply to high-match jobs</li>
-            <li><strong>Week 3:</strong> Recruiter outreach</li>
-            <li><strong>Week 4:</strong> Interview prep</li>
+        <div className="panel-surface p-5">
+          <p className="eyebrow">Operating rhythm</p>
+          <h2 className="mt-1 font-semibold">Progress timeline</h2>
+          <ul className="mt-4 grid gap-3 text-sm text-muted-foreground sm:grid-cols-2">
+            {[
+              ['Week 1', 'Fix CV'],
+              ['Week 2', 'Apply to high-match jobs'],
+              ['Week 3', 'Recruiter outreach'],
+              ['Week 4', 'Interview prep'],
+            ].map(([week, item]) => (
+              <li key={week} className="rounded-md border border-border bg-card p-3">
+                <strong className="block text-foreground">{week}</strong>
+                <span>{item}</span>
+              </li>
+            ))}
           </ul>
         </div>
       </div>
 
       {topMatches.length > 0 && (
         <div className="mt-8">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">High-fit jobs</h2>
-            <Link href="/recommended" className="text-sm text-primary hover:underline">View all →</Link>
+          <div className="mb-4 flex items-center justify-between border-b border-border pb-3">
+            <div>
+              <p className="eyebrow">Opportunity feed</p>
+              <h2 className="mt-1 text-lg font-semibold">High-fit jobs</h2>
+            </div>
+            <Link href="/recommended" className="inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline">
+              View all <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
           <div className="space-y-4">
             {topMatches.map((m) => m.job ? <JobCard key={m.job.id} job={{ ...m.job, match_score: m.interview_signal ?? m.final_score }} showMatch /> : null)}
@@ -120,15 +161,16 @@ export default async function DashboardPage() {
       )}
 
       {skills.length > 0 && (
-        <div className="mt-8 card-surface p-5">
-          <h2 className="font-semibold">Skills in profile</h2>
+        <div className="mt-8 panel-surface p-5">
+          <p className="eyebrow">Profile graph</p>
+          <h2 className="mt-1 font-semibold">Skills in profile</h2>
           <div className="mt-3 flex flex-wrap gap-2">
             {skills.slice(0, 12).map((s) => (
-              <span key={s.id} className="rounded-full bg-surface-muted px-3 py-1 text-sm">{s.skillName}</span>
+              <span key={s.id} className="rounded-md border border-border bg-muted px-3 py-1 text-sm font-medium">{s.skillName}</span>
             ))}
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

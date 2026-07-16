@@ -15,17 +15,15 @@ function buildRedirectTo(redirect?: string): string {
 
 async function providerIsEnabled(provider: 'google' | 'linkedin_oidc'): Promise<boolean> {
   try {
-    if (provider === 'google' && process.env.NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED !== 'true') {
-      return false;
-    }
-    if (provider === 'linkedin_oidc' && process.env.NEXT_PUBLIC_LINKEDIN_OIDC_ENABLED !== 'true') {
-      return false;
-    }
-
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     if (!supabaseUrl) return false;
+
+    // GoTrue's public settings endpoint is the source of truth. Keeping a
+    // second build-time feature flag here can leave OAuth disabled in the UI
+    // even after the provider has been configured correctly in Supabase.
     const res = await fetch(`${supabaseUrl}/auth/v1/settings`, {
       headers: { apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '' },
+      cache: 'no-store',
     });
     if (!res.ok) return false;
     const settings = await res.json();

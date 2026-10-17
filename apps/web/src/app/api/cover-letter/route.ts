@@ -1,6 +1,13 @@
+import { canAccessJob } from '@/lib/job-access';
 import { NextResponse } from 'next/server';
 import { eq, desc } from 'drizzle-orm';
-import { getDb, coverLetters, mapCoverLetter, newId, toIsoNow } from '@careersignal/db';
+import {
+  getDb,
+  coverLetters,
+  mapCoverLetter,
+  newId,
+  toIsoNow,
+} from '@careersignal/db';
 import { getSession } from '@/lib/auth/session';
 import { getCandidateRowByUserId } from '@/lib/queries';
 import { getPlanStateForUser, gate, paywallBody } from '@/lib/access';
@@ -8,10 +15,12 @@ import { aiFetch } from '@/lib/utils';
 
 export async function GET() {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!session)
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const candidate = await getCandidateRowByUserId(session.userId);
-  if (!candidate) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+  if (!candidate)
+    return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
 
   const rows = await getDb()
     .select()
@@ -24,20 +33,31 @@ export async function GET() {
 
 export async function POST(request: Request) {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!session)
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const candidate = await getCandidateRowByUserId(session.userId);
-  if (!candidate) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+  if (!candidate)
+    return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
 
-  const clGate = gate(await getPlanStateForUser(session.userId), 'cover_letter');
+  const clGate = gate(
+    await getPlanStateForUser(session.userId),
+    'cover_letter',
+  );
   if (!clGate.allowed) {
     return NextResponse.json(paywallBody(clGate), { status: 402 });
   }
 
   const body = await request.json();
   if (!body.jd_text?.trim() && !body.job_title?.trim() && !body.job_id) {
-    return NextResponse.json({ error: 'Provide a job description, title, or job.' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'Provide a job description, title, or job.' },
+      { status: 400 },
+    );
   }
+
+  if (body.job_id != null && !(await canAccessJob(candidate.id, body.job_id)))
+    return NextResponse.json({ error: 'Job not found' }, { status: 404 });
 
   try {
     const res = await aiFetch(`/cover-letter/generate`, {
@@ -52,24 +72,39 @@ export async function POST(request: Request) {
         tone: body.tone ?? 'warm',
       }),
     });
-    if (!res.ok) return NextResponse.json({ error: 'Generation failed' }, { status: 500 });
+    if (!res.ok)
+      return NextResponse.json({ error: 'Generation failed' }, { status: 500 });
     const { content } = await res.json();
 
     const now = toIsoNow();
     const id = newId();
-    await getDb().insert(coverLetters).values({
-      id,
-      candidateId: candidate.id,
-      jobId: body.job_id ?? null,
-      content,
-      tone: body.tone ?? 'warm',
-      createdAt: now,
-      updatedAt: now,
-    });
+    await getDb()
+      .insert(coverLetters)
+      .values({
+        id,
+        candidateId: candidate.id,
+        jobId: body.job_id ?? null,
+        content,
+        tone: body.tone ?? 'warm',
+        createdAt: now,
+        updatedAt: now,
+      });
 
-    const created = (await getDb().select().from(coverLetters).where(eq(coverLetters.id, id)).limit(1))[0];
-    return NextResponse.json({ letter: created ? mapCoverLetter(created) : { content } }, { status: 201 });
+    const created = (
+      await getDb()
+        .select()
+        .from(coverLetters)
+        .where(eq(coverLetters.id, id))
+        .limit(1)
+    )[0];
+    return NextResponse.json(
+      { letter: created ? mapCoverLetter(created) : { content } },
+      { status: 201 },
+    );
   } catch {
-    return NextResponse.json({ error: 'AI service unavailable' }, { status: 503 });
+    return NextResponse.json(
+      { error: 'AI service unavailable' },
+      { status: 503 },
+    );
   }
 }

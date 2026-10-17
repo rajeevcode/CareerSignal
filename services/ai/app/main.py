@@ -26,6 +26,7 @@ from app.matching.engine import (
 )
 from app.parser.cv_parser import ALLOWED_CV_EXTENSIONS, UnsupportedFileType, parse_cv
 from app.scoring.cv_score_engine import compute_cv_score_breakdown
+from app.scoring.evidence import build_evidence_report
 from app.scoring.interview_signal_engine import compute_interview_signal, merge_match_result
 from app.scoring.jd_match_engine import compute_jd_match_breakdown, job_dict_from_jd_text
 
@@ -97,6 +98,7 @@ class GapAnalysisRequest(BaseModel):
 
 
 class RewriteBulletRequest(BaseModel):
+    candidate_id: str | None = None
     bullet: str = Field(max_length=2000)
     job_id: str | None = None
     job_title: str | None = Field(default=None, max_length=200)
@@ -276,7 +278,8 @@ async def match_jd_endpoint(req: MatchJdRequest):
         raise HTTPException(404, "Candidate not found")
 
     candidate_skills = sqlite_db.get_candidate_skills(req.candidate_id)
-    cv_text = sqlite_db.get_primary_cv_text(req.candidate_id) or candidate.get("profile_summary") or ""
+    source_cv_text = sqlite_db.get_primary_cv_text(req.candidate_id) or ""
+    cv_text = source_cv_text or candidate.get("profile_summary") or ""
 
     job = job_dict_from_jd_text(req.jd_text, req.job_title or "Pasted Job")
     if settings.openai_api_key and not job.get("embedding"):
@@ -286,7 +289,7 @@ async def match_jd_endpoint(req: MatchJdRequest):
         job["embedding"] = parsed["embedding"]
 
     jd_breakdown = compute_jd_match_breakdown(candidate, job, candidate_skills, cv_text)
-    profile_cv = candidate.get("cv_score") or 60.0
+    profile_cv = candidate.get("cv_score") if candidate.get("cv_score") is not None else 60.0
     interview_signal = compute_interview_signal(
         jd_breakdown["jd_match_score"], profile_cv, job, candidate,
     )
@@ -296,7 +299,9 @@ async def match_jd_endpoint(req: MatchJdRequest):
     current_fit = breakdown["jd_match_score"]
     gap = await analyze_cv_job_gap(candidate, job, cv_text, candidate_skills, current_fit)
 
-    sqlite_db.save_jd_analysis(req.candidate_id, req.jd_text, req.job_title, breakdown, gap)
+    evidence = build_evidence_report(job, source_cv_text)
+    # Persist source evidence alongside the existing analysis without altering numeric score fields.
+    sqlite_db.save_jd_analysis(req.candidate_id, req.jd_text, req.job_title, breakdown, {**gap, "evidence": evidence})
 
     return {
         "breakdown": breakdown,
@@ -305,12 +310,13 @@ async def match_jd_endpoint(req: MatchJdRequest):
         "jd_match_score": breakdown["jd_match_score"],
         "interview_signal": breakdown["interview_signal"],
         "cv_score": profile_cv,
+        "evidence": evidence,
     }
 
 
 @app.post("/parse-job")
 async def parse_job_endpoint(req: JobParseRequest):
-    job = sqlite_db.get_job(req.job_id)
+    job = sqlite_db.get_job_for_parsing(req.job_id)
     if not job:
         raise HTTPException(404, "Job not found")
 
@@ -327,7 +333,7 @@ async def parse_job_endpoint(req: JobParseRequest):
 @app.post("/match")
 async def match_endpoint(req: MatchRequest):
     candidate = sqlite_db.get_candidate(req.candidate_id)
-    job = sqlite_db.get_job(req.job_id)
+    job = sqlite_db.get_job(req.job_id, req.candidate_id)
 
     if not candidate or not job:
         raise HTTPException(404, "Candidate or job not found")
@@ -388,7 +394,7 @@ async def batch_match_endpoint(req: BatchMatchRequest):
 @app.post("/analyze-gap")
 async def analyze_gap_endpoint(req: GapAnalysisRequest):
     candidate = sqlite_db.get_candidate(req.candidate_id)
-    job = sqlite_db.get_job(req.job_id)
+    job = sqlite_db.get_job(req.job_id, req.candidate_id)
 
     if not candidate or not job:
         raise HTTPException(404, "Candidate or job not found")
@@ -422,7 +428,9 @@ async def rewrite_bullet_endpoint(req: RewriteBulletRequest):
     if req.mode not in ("regenerate", "senior", "concise"):
         raise HTTPException(400, "Invalid mode")
 
-    job = sqlite_db.get_job(req.job_id) if req.job_id else None
+    job = sqlite_db.get_job(req.job_id, req.candidate_id) if req.job_id else None
+    if req.job_id and not job:
+        raise HTTPException(404, "Job not found")
     if not job:
         job = {
             "title": req.job_title or "",
@@ -460,7 +468,9 @@ async def cover_letter_endpoint(req: CoverLetterRequest):
     company_name = req.company_name or ""
     jd_text = req.jd_text or ""
     if req.job_id:
-        job = sqlite_db.get_job(req.job_id)
+        job = sqlite_db.get_job(req.job_id, req.candidate_id)
+        if not job:
+            raise HTTPException(404, "Job not found")
         company = sqlite_db.get_company_for_job(req.job_id)
         if job:
             job_title = job_title or job.get("title") or ""
@@ -534,7 +544,7 @@ async def interview_prep_generate_endpoint(req: InterviewPrepRequest):
     candidate = sqlite_db.get_candidate(req.candidate_id)
     if not candidate:
         raise HTTPException(404, "Candidate not found")
-    if req.job_id and not sqlite_db.get_job(req.job_id):
+    if req.job_id and not sqlite_db.get_job(req.job_id, req.candidate_id):
         raise HTTPException(404, "Job not found")
 
     try:

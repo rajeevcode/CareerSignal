@@ -1,16 +1,19 @@
 import Link from 'next/link';
+import { eq, and, isNotNull } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
-import { parseJsonArray } from '@careersignal/db';
+import { parseJsonArray, parseJsonObject, getDb, careerContacts, careerIntegrationItems } from '@careersignal/db';
 import { JobCard } from '@/components/JobCard';
 import { ProbabilityMap } from '@/components/ProbabilityMap';
 import { MetricCard } from '@/components/ui/MetricCard';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { getCurrentUser } from '@/lib/auth/session';
+import { ApplicationControls } from '@/components/applications/ApplicationControls';
+import { applicationAnalytics, buildCareerActions } from '@/lib/career-actions';
 import { ensureBatchMatch } from '@/lib/matching';
 import {
   getCandidateRowByUserId,
   countMatchScores,
-  countApplications,
+  listApplicationsWithJobs,
   listMatchScoresForCandidate,
   listCandidateSkills,
   getProbabilityMapByCategory,
@@ -24,34 +27,38 @@ export default async function DashboardPage() {
   const candidate = await getCandidateRowByUserId(user.id);
   if (!candidate) redirect('/register');
 
-  if (candidate.cvScore != null) {
-    await ensureBatchMatch(candidate.id);
-  }
+  const matching = candidate.cvScore != null ? await ensureBatchMatch(candidate.id) : 'ready';
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   const firstName = user.full_name?.split(' ')[0] || 'there';
-  const matchCount = await countMatchScores(candidate.id);
-  const highProbCount = await countMatchScores(candidate.id, 70);
-  const appCount = await countApplications(candidate.id);
-  const cvScore = candidate.cvScore ? Math.round(candidate.cvScore) : null;
-  const careerHealth = cvScore ? Math.round(cvScore * 0.6 + Math.min(highProbCount * 2, 40)) : null;
+  const [highProbCount, apps, matches, skills, probabilityMap] = await Promise.all([
+    countMatchScores(candidate.id, 70), listApplicationsWithJobs(candidate.id),
+    listMatchScoresForCandidate(candidate.id), listCandidateSkills(candidate.id),
+    getProbabilityMapByCategory(candidate.id),
+  ]);
+  const analytics = applicationAnalytics(apps);
+  const cvScore = candidate.cvScore == null ? null : Math.round(candidate.cvScore);
   const roles = parseJsonArray<string>(candidate.targetRoles);
-  const topMatches = (await listMatchScoresForCandidate(candidate.id)).filter((m) => m.final_score >= 60).slice(0, 5);
-  const skills = await listCandidateSkills(candidate.id);
-  const probabilityMap = await getProbabilityMapByCategory(candidate.id);
-
-  const actions = [
-    highProbCount > 0 && `Apply to ${Math.min(highProbCount, 5)} jobs above 75% match`,
-    cvScore && cvScore < 80 && 'Rewrite CV summary for AI Product Manager roles',
-    appCount > 0 && 'Follow up on 4 applications with no reply',
-    'Prepare STAR stories for 2 upcoming interviews',
-  ].filter(Boolean) as string[];
+  const topMatches = matches.filter((m) => m.final_score >= 70).slice(0, 5);
+  const renderTime=new Date().getTime();
+  const [contacts,calendar]=await Promise.all([
+    getDb().select().from(careerContacts).where(eq(careerContacts.candidateId,candidate.id)),
+    getDb().select().from(careerIntegrationItems).where(and(eq(careerIntegrationItems.candidateId,candidate.id),eq(careerIntegrationItems.kind,'calendar'),isNotNull(careerIntegrationItems.reviewedAt))),
+  ]);
+  const actions = [...buildCareerActions(apps, cvScore).map(action=>{
+    const id=action.id.replace(/^prepare-/, '');const event=calendar.find(item=>item.applicationId===id&&item.startsAt&&Date.parse(item.startsAt)>renderTime);
+    return event?{...action,reason:event.allDay?`Recorded all-day calendar event: ${event.startsAt?.slice(0,10)} (time unspecified)`:`Recorded calendar event: ${event.startsAt}`} : action;
+  }),...contacts.filter(contact=>contact.nextContactAt&&Date.parse(contact.nextContactAt)<=renderTime).map(contact=>({
+    id:`contact-${contact.id}`,label:`Contact ${contact.name}`,reason:`Recorded networking follow-up: ${contact.nextContactAt?.slice(0,10)}`,href:'/career?tab=network',application:undefined,
+  }))];
+  const feedback = parseJsonObject<Record<string, unknown>>(candidate.cvFeedbackJson);
+  const improvements = Array.isArray(feedback?.weak) ? feedback.weak.filter((item): item is string => typeof item === 'string') : [];
 
   return (
     <div className="app-page">
       <PageHeader
-        title={`${greeting}, ${firstName}. Your job search signal is improving.`}
+        title={`${greeting}, ${firstName}. Your job search at a glance.`}
         subtitle="Build your CV. Match any job. Know your interview signal."
         actions={
           <>
@@ -66,14 +73,19 @@ export default async function DashboardPage() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <MetricCard label="Career Health" value={careerHealth ? `${careerHealth}/100` : '—'} icon={Heart} accent="success" />
-        <MetricCard label="CV Score" value={cvScore ? `${cvScore}/100` : '—'} icon={Upload} accent="primary" />
+        <MetricCard label="Employer Responses" value={analytics.responded} icon={Heart} accent="success" />
+        <MetricCard label="CV Score" value={cvScore != null ? `${cvScore}/100` : '—'} icon={Upload} accent="primary" />
         <MetricCard label="Best Role Fit" value={roles[0] || '—'} icon={Target} accent="primary" />
-        <MetricCard label="High-Match Jobs" value={highProbCount || matchCount} icon={TrendingUp} accent="success" />
-        <MetricCard label="Applications" value={appCount} icon={Send} accent="neutral" />
-        <MetricCard label="Follow-ups Due" value={Math.min(appCount, 4)} icon={Activity} accent="warning" />
+        <MetricCard label="High-Match Jobs" value={highProbCount} icon={TrendingUp} accent="success" />
+        <MetricCard label="Applications" value={analytics.total} icon={Send} accent="neutral" />
+        <MetricCard label="Follow-ups Due" value={analytics.followUpsDue} icon={Activity} accent="warning" />
       </div>
 
+      {matching === 'unavailable' && <p role="status" className="mt-4 rounded-md border border-border bg-card p-3 text-sm text-muted-foreground">
+        Job matching is temporarily unavailable. Refresh to retry; your existing applications are still available.
+      </p>}
+
+      {actions.length === 0 && <p className="mt-6 panel-surface p-5 text-sm text-muted-foreground">No follow-ups or preparation tasks are due from your recorded applications. <Link href="/jobs" className="font-medium text-primary hover:underline">Explore jobs</Link></p>}
       {actions.length > 0 && (
         <div className="mt-6 panel-surface p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -87,9 +99,13 @@ export default async function DashboardPage() {
           </div>
           <ol className="mt-4 grid gap-2 sm:grid-cols-2">
             {actions.map((a, i) => (
-              <li key={a} className="flex items-start gap-3 rounded-md border border-border bg-card p-3 text-sm text-foreground">
+              <li key={a.id} className="flex items-start gap-3 rounded-md border border-border bg-card p-3 text-sm text-foreground">
                 <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">{i + 1}</span>
-                <span className="leading-6">{a}</span>
+                <div className="min-w-0 flex-1">
+                  <Link href={a.href} className="font-medium leading-6 text-primary hover:underline">{a.label}</Link>
+                  <p className="text-xs text-muted-foreground">{a.reason}</p>
+                  {a.application && <ApplicationControls application={a.application} compact />}
+                </div>
               </li>
             ))}
           </ol>
@@ -113,20 +129,22 @@ export default async function DashboardPage() {
           <p className="eyebrow">CV quality</p>
           <h2 className="mt-1 font-semibold">Improvement areas</h2>
           <ul className="mt-4 space-y-3 text-sm text-muted-foreground">
-            {['Make AI product ownership more visible', 'Clarify visa and relocation preferences', 'Add stronger business impact metrics'].map((item) => (
+            {improvements.slice(0, 5).map((item) => (
               <li key={item} className="flex items-start gap-2">
                 <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                 <span>{item}</span>
               </li>
             ))}
           </ul>
+          {improvements.length === 0 && <p className="mt-3 text-sm text-muted-foreground">No specific improvement feedback has been recorded. Open your CV report to review available results.</p>}
           <Link href="/resume-score" className="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline">
             Full CV Score <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
         <div className="panel-surface p-5">
           <p className="eyebrow">Operating rhythm</p>
-          <h2 className="mt-1 font-semibold">Progress timeline</h2>
+          <h2 className="mt-1 font-semibold">Suggested weekly routine</h2>
+          <p className="mt-2 text-xs text-muted-foreground">A suggested routine, not recorded progress.</p>
           <ul className="mt-4 grid gap-3 text-sm text-muted-foreground sm:grid-cols-2">
             {[
               ['Week 1', 'Fix CV'],

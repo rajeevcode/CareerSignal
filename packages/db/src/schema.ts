@@ -143,6 +143,7 @@ export const cvUploads = pgTable('cv_uploads', {
 });
 
 export const companies = pgTable('companies', {
+  capturedBy: uuid('captured_by'),
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),
   website: text('website'),
@@ -157,6 +158,7 @@ export const companies = pgTable('companies', {
 });
 
 export const jobs = pgTable('jobs', {
+  capturedBy: uuid('captured_by'),
   id: uuid('id').primaryKey().defaultRandom(),
   companyId: uuid('company_id').notNull().references(() => companies.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
@@ -219,6 +221,7 @@ export const applications = pgTable('applications', {
 }));
 
 export const matchScores = pgTable('match_scores', {
+  scoringVersion: text('scoring_version'),
   id: uuid('id').primaryKey().defaultRandom(),
   candidateId: uuid('candidate_id').notNull().references(() => candidateProfiles.id, { onDelete: 'cascade' }),
   jobId: uuid('job_id').notNull().references(() => jobs.id, { onDelete: 'cascade' }),
@@ -280,6 +283,9 @@ export const starStories = pgTable('star_stories', {
   id: uuid('id').primaryKey().defaultRandom(),
   candidateId: uuid('candidate_id').notNull().references(() => candidateProfiles.id, { onDelete: 'cascade' }),
   title: text('title').notNull(),
+  sourceExcerpt: text('source_excerpt'),
+  sourceCvId: uuid('source_cv_id'),
+  candidateVerifiedAt: ts('candidate_verified_at'),
   situation: text('situation'),
   task: text('task'),
   action: text('action'),
@@ -349,4 +355,49 @@ export const interviewMessages = pgTable('interview_messages', {
   feedbackJson: jsonb('feedback_json'),
   score: doublePrecision('score'),
   createdAt: ts('created_at').notNull(),
+});
+
+export const capturedJobs = pgTable('captured_jobs', {
+  id: uuid('id').primaryKey().defaultRandom(), candidateId: uuid('candidate_id').notNull(), jobId: uuid('job_id').notNull(),
+  canonicalUrl: text('canonical_url').notNull(), country: text('country'), createdAt: ts('created_at').notNull().defaultNow(),
+});
+export const applicationSnapshots = pgTable('application_snapshots', {
+  id: uuid('id').primaryKey().defaultRandom(), applicationId: uuid('application_id').notNull(), candidateId: uuid('candidate_id').notNull(),
+  jobJson: jsonb('job_json').notNull(), cvJson: jsonb('cv_json'), cvFingerprint: text('cv_fingerprint'), country: text('country'),
+  sourceHost: text('source_host'), provenance: text('provenance').notNull(), scoringVersion: text('scoring_version').notNull(), createdAt: ts('created_at').notNull().defaultNow(),
+});
+export const applicationEvents = pgTable('application_events', {
+  id: uuid('id').primaryKey().defaultRandom(), applicationId: uuid('application_id').notNull(), candidateId: uuid('candidate_id').notNull(),
+  fromStatus: text('from_status'), toStatus: text('to_status').notNull(), kind: text('kind').notNull(), createdAt: ts('created_at').notNull().defaultNow(),
+});
+export const careerContacts = pgTable('career_contacts', {
+  applicationId: uuid('application_id'),
+  id: uuid('id').primaryKey().defaultRandom(), candidateId: uuid('candidate_id').notNull(), name: text('name').notNull(),
+  email: text('email'), company: text('company'), notes: text('notes'), nextContactAt: ts('next_contact_at'), createdAt: ts('created_at').notNull().defaultNow(),
+});
+export const careerConnections = pgTable('career_connections', {
+  id: uuid('id').primaryKey().defaultRandom(), candidateId: uuid('candidate_id').notNull(), kind: text('kind').notNull(),
+  tokenCiphertext: text('token_ciphertext').notNull(), scopes: text('scopes').notNull(), lastSyncedAt: ts('last_synced_at'),
+  createdAt: ts('created_at').notNull().defaultNow(), updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+export const careerOauthStates = pgTable('career_oauth_states', {
+  stateHash: text('state_hash').primaryKey(), candidateId: uuid('candidate_id').notNull(), kind: text('kind').notNull(),
+  verifierCiphertext: text('verifier_ciphertext').notNull(), expiresAt: ts('expires_at').notNull(),
+});
+export const careerIntegrationItems = pgTable('career_integration_items', {
+  id: uuid('id').primaryKey().defaultRandom(), candidateId: uuid('candidate_id').notNull(), connectionId: uuid('connection_id').notNull(),
+  externalId: text('external_id').notNull(), kind: text('kind').notNull(), title: text('title').notNull(), excerpt: text('excerpt'), sourceUrl: text('source_url'),
+  applicationId: uuid('application_id'),
+  allDay: boolean('all_day').notNull().default(false),
+  startsAt: ts('starts_at'), proposedStatus: text('proposed_status'), reviewedAt: ts('reviewed_at'), createdAt: ts('created_at').notNull().defaultNow(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+export const careerNotifications = pgTable('career_notifications', {
+  id: uuid('id').primaryKey().defaultRandom(), candidateId: uuid('candidate_id').notNull(), applicationId: uuid('application_id').notNull(),
+  dueAt: ts('due_at').notNull(), createdAt: ts('created_at').notNull().defaultNow(),
+});
+export const jdRequests = pgTable('jd_requests', {
+  id: uuid('id').primaryKey().defaultRandom(), candidateId: uuid('candidate_id').notNull(), userId: uuid('user_id').notNull(),
+  requestKey: text('request_key').notNull(), bodyHash: text('body_hash').notNull(), status: text('status').notNull(), reservedMonth: text('reserved_month'),
+  responseJson: jsonb('response_json'), leaseExpiresAt: ts('lease_expires_at').notNull(), createdAt: ts('created_at').notNull().defaultNow(),
 });

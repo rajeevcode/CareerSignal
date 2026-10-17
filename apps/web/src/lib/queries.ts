@@ -1,4 +1,4 @@
-import { eq, and, desc, inArray } from 'drizzle-orm';
+import { eq, and, desc, inArray, isNull, or } from 'drizzle-orm';
 import {
   getDb,
   jobs,
@@ -23,13 +23,15 @@ import {
 } from '@careersignal/db';
 import type { JobFilters, ProbabilityMapEntry } from '@careersignal/shared';
 
-async function one<T>(query: { then: PromiseLike<T[]>['then'] } | Promise<T[]>): Promise<T | null> {
+async function one<T>(
+  query: { then: PromiseLike<T[]>['then'] } | Promise<T[]>,
+): Promise<T | null> {
   const rows = (await query) as T[];
   return rows[0] ?? null;
 }
 
 /** Fetch jobs (+company) for a set of ids in ONE query, returned as an id→Job map. */
-async function jobMapForIds(ids: string[]) {
+async function jobMapForIds(ids: string[], candidateId: string) {
   const map = new Map<string, ReturnType<typeof mapJob>>();
   const unique = [...new Set(ids)];
   if (unique.length === 0) return map;
@@ -37,20 +39,36 @@ async function jobMapForIds(ids: string[]) {
     .select({ job: jobs, company: companies })
     .from(jobs)
     .innerJoin(companies, eq(jobs.companyId, companies.id))
-    .where(inArray(jobs.id, unique));
-  for (const { job, company } of rows) map.set(job.id, mapJob(job, mapCompany(company)));
+    .where(
+      and(
+        inArray(jobs.id, unique),
+        or(isNull(jobs.capturedBy), eq(jobs.capturedBy, candidateId)),
+      ),
+    );
+  for (const { job, company } of rows)
+    map.set(job.id, mapJob(job, mapCompany(company)));
   return map;
 }
 
 export async function getCandidateByUserId(userId: string) {
   const db = getDb();
-  const row = await one(db.select().from(candidateProfiles).where(eq(candidateProfiles.userId, userId)));
+  const row = await one(
+    db
+      .select()
+      .from(candidateProfiles)
+      .where(eq(candidateProfiles.userId, userId)),
+  );
   return row ? mapCandidateProfile(row) : null;
 }
 
 export async function getCandidateRowByUserId(userId: string) {
   const db = getDb();
-  return one(db.select().from(candidateProfiles).where(eq(candidateProfiles.userId, userId)));
+  return one(
+    db
+      .select()
+      .from(candidateProfiles)
+      .where(eq(candidateProfiles.userId, userId)),
+  );
 }
 
 export async function listPublishedJobs(filters: JobFilters = {}) {
@@ -59,7 +77,7 @@ export async function listPublishedJobs(filters: JobFilters = {}) {
     .select({ job: jobs, company: companies })
     .from(jobs)
     .innerJoin(companies, eq(jobs.companyId, companies.id))
-    .where(eq(jobs.status, 'published'))
+    .where(and(eq(jobs.status, 'published'), isNull(jobs.capturedBy)))
     .orderBy(desc(jobs.postedAt));
 
   return rows
@@ -67,12 +85,27 @@ export async function listPublishedJobs(filters: JobFilters = {}) {
     .filter((job) => {
       if (filters.q) {
         const q = filters.q.toLowerCase();
-        if (!job.title.toLowerCase().includes(q) && !job.description.toLowerCase().includes(q)) return false;
+        if (
+          !job.title.toLowerCase().includes(q) &&
+          !job.description.toLowerCase().includes(q)
+        )
+          return false;
       }
-      if (filters.location && !job.location?.toLowerCase().includes(filters.location.toLowerCase())) return false;
-      if (filters.remote_type && job.remote_type !== filters.remote_type) return false;
-      if (filters.function_tag && job.function_tag !== filters.function_tag) return false;
-      if (filters.experience_min != null && job.experience_min != null && job.experience_min > filters.experience_min) return false;
+      if (
+        filters.location &&
+        !job.location?.toLowerCase().includes(filters.location.toLowerCase())
+      )
+        return false;
+      if (filters.remote_type && job.remote_type !== filters.remote_type)
+        return false;
+      if (filters.function_tag && job.function_tag !== filters.function_tag)
+        return false;
+      if (
+        filters.experience_min != null &&
+        job.experience_min != null &&
+        job.experience_min > filters.experience_min
+      )
+        return false;
       if (filters.visa_sponsorship && !job.visa_sponsorship) return false;
       return true;
     });
@@ -85,7 +118,13 @@ export async function getJobById(id: string) {
       .select({ job: jobs, company: companies })
       .from(jobs)
       .innerJoin(companies, eq(jobs.companyId, companies.id))
-      .where(and(eq(jobs.id, id), eq(jobs.status, 'published'))),
+      .where(
+        and(
+          eq(jobs.id, id),
+          eq(jobs.status, 'published'),
+          isNull(jobs.capturedBy),
+        ),
+      ),
   );
   if (!row) return null;
   return mapJob(row.job, mapCompany(row.company));
@@ -94,7 +133,12 @@ export async function getJobById(id: string) {
 export async function isJobSaved(candidateId: string, jobId: string) {
   const db = getDb();
   const row = await one(
-    db.select().from(savedJobs).where(and(eq(savedJobs.candidateId, candidateId), eq(savedJobs.jobId, jobId))),
+    db
+      .select()
+      .from(savedJobs)
+      .where(
+        and(eq(savedJobs.candidateId, candidateId), eq(savedJobs.jobId, jobId)),
+      ),
   );
   return !!row;
 }
@@ -102,7 +146,15 @@ export async function isJobSaved(candidateId: string, jobId: string) {
 export async function hasApplied(candidateId: string, jobId: string) {
   const db = getDb();
   const row = await one(
-    db.select().from(applications).where(and(eq(applications.candidateId, candidateId), eq(applications.jobId, jobId))),
+    db
+      .select()
+      .from(applications)
+      .where(
+        and(
+          eq(applications.candidateId, candidateId),
+          eq(applications.jobId, jobId),
+        ),
+      ),
   );
   return !!row;
 }
@@ -110,7 +162,15 @@ export async function hasApplied(candidateId: string, jobId: string) {
 export async function getMatchScore(candidateId: string, jobId: string) {
   const db = getDb();
   const row = await one(
-    db.select().from(matchScores).where(and(eq(matchScores.candidateId, candidateId), eq(matchScores.jobId, jobId))),
+    db
+      .select()
+      .from(matchScores)
+      .where(
+        and(
+          eq(matchScores.candidateId, candidateId),
+          eq(matchScores.jobId, jobId),
+        ),
+      ),
   );
   return row ? mapMatchScore(row) : null;
 }
@@ -123,20 +183,29 @@ export async function listMatchScoresForCandidate(candidateId: string) {
     .where(eq(matchScores.candidateId, candidateId))
     .orderBy(desc(matchScores.finalScore));
 
-  const jobs_ = await jobMapForIds(rows.map((r) => r.jobId));
+  const jobs_ = await jobMapForIds(
+    rows.map((r) => r.jobId),
+    candidateId,
+  );
   return rows.map((row) => mapMatchScore(row, jobs_.get(row.jobId)));
 }
 
 export async function countMatchScores(candidateId: string, minScore?: number) {
   const db = getDb();
-  const rows = await db.select().from(matchScores).where(eq(matchScores.candidateId, candidateId));
+  const rows = await db
+    .select()
+    .from(matchScores)
+    .where(eq(matchScores.candidateId, candidateId));
   if (minScore == null) return rows.length;
   return rows.filter((r) => r.finalScore >= minScore).length;
 }
 
 export async function countApplications(candidateId: string) {
   const db = getDb();
-  const rows = await db.select().from(applications).where(eq(applications.candidateId, candidateId));
+  const rows = await db
+    .select()
+    .from(applications)
+    .where(eq(applications.candidateId, candidateId));
   return rows.length;
 }
 
@@ -148,9 +217,14 @@ export async function listSavedJobs(candidateId: string) {
     .where(eq(savedJobs.candidateId, candidateId))
     .orderBy(desc(savedJobs.createdAt));
 
-  const jobs_ = await jobMapForIds(rows.map((r) => r.jobId));
+  const jobs_ = await jobMapForIds(
+    rows.map((r) => r.jobId),
+    candidateId,
+  );
   // Preserve saved-order (rows are ordered by createdAt desc); drop any missing jobs.
-  return rows.map((saved) => jobs_.get(saved.jobId)).filter((j): j is NonNullable<typeof j> => j != null);
+  return rows
+    .map((saved) => jobs_.get(saved.jobId))
+    .filter((j): j is NonNullable<typeof j> => j != null);
 }
 
 export async function listApplications(candidateId: string) {
@@ -160,6 +234,17 @@ export async function listApplications(candidateId: string) {
     .from(applications)
     .where(eq(applications.candidateId, candidateId))
     .orderBy(desc(applications.appliedAt));
+}
+
+export async function listApplicationsWithJobs(candidateId: string) {
+  const rows = await listApplications(candidateId);
+  const jobsById = await jobMapForIds(
+    rows.map((row) => row.jobId),
+    candidateId,
+  );
+  return rows.map((row) =>
+    mapApplication(row, jobsById.get(row.jobId), { includePrivateNotes: true }),
+  );
 }
 
 export async function listCvUploads(candidateId: string) {
@@ -183,13 +268,20 @@ export async function listAllJobs() {
 
 export async function listCompanies() {
   const db = getDb();
-  const rows = await db.select().from(companies).orderBy(companies.name);
+  const rows = await db
+    .select()
+    .from(companies)
+    .where(isNull(companies.capturedBy))
+    .orderBy(companies.name);
   return rows.map(mapCompany);
 }
 
 export async function listCandidateSkills(candidateId: string) {
   const db = getDb();
-  return db.select().from(candidateSkills).where(eq(candidateSkills.candidateId, candidateId));
+  return db
+    .select()
+    .from(candidateSkills)
+    .where(eq(candidateSkills.candidateId, candidateId));
 }
 
 export async function listCandidateExperience(candidateId: string) {
@@ -202,19 +294,31 @@ export async function listCandidateExperience(candidateId: string) {
 }
 
 function roleMatchesJobTitle(role: string, jobTitle: string): boolean {
-  const roleTokens = role.toLowerCase().split(/\s+/).filter((t) => t.length > 2);
+  const roleTokens = role
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((t) => t.length > 2);
   const titleLower = jobTitle.toLowerCase();
   if (titleLower.includes(role.toLowerCase())) return true;
   const matched = roleTokens.filter((t) => titleLower.includes(t));
   return matched.length >= Math.min(2, roleTokens.length);
 }
 
-export async function getProbabilityMapByCategory(candidateId: string): Promise<ProbabilityMapEntry[]> {
+export async function getProbabilityMapByCategory(
+  candidateId: string,
+): Promise<ProbabilityMapEntry[]> {
   const db = getDb();
-  const candidate = await one(db.select().from(candidateProfiles).where(eq(candidateProfiles.id, candidateId)));
+  const candidate = await one(
+    db
+      .select()
+      .from(candidateProfiles)
+      .where(eq(candidateProfiles.id, candidateId)),
+  );
   if (!candidate) return [];
 
-  const matches = (await listMatchScoresForCandidate(candidateId)).filter((m) => m.job);
+  const matches = (await listMatchScoresForCandidate(candidateId)).filter(
+    (m) => m.job,
+  );
   if (matches.length === 0) return [];
 
   const targetRoles = parseJsonArray<string>(candidate.targetRoles);
@@ -222,10 +326,19 @@ export async function getProbabilityMapByCategory(candidateId: string): Promise<
   if (targetRoles.length > 0) {
     const entries: ProbabilityMapEntry[] = [];
     for (const role of targetRoles) {
-      const roleMatches = matches.filter((m) => m.job && roleMatchesJobTitle(role, m.job!.title));
+      const roleMatches = matches.filter(
+        (m) => m.job && roleMatchesJobTitle(role, m.job!.title),
+      );
       if (roleMatches.length === 0) continue;
-      const avg = roleMatches.reduce((sum, m) => sum + m.final_score, 0) / roleMatches.length;
-      entries.push({ label: role, avg_score: Math.round(avg), job_count: roleMatches.length, source: 'target_role' });
+      const avg =
+        roleMatches.reduce((sum, m) => sum + m.final_score, 0) /
+        roleMatches.length;
+      entries.push({
+        label: role,
+        avg_score: Math.round(avg),
+        job_count: roleMatches.length,
+        source: 'target_role',
+      });
     }
     if (entries.length > 0) {
       return entries.sort((a, b) => b.avg_score - a.avg_score).slice(0, 6);
@@ -262,10 +375,17 @@ export async function setOnboardingStep(userId: string, step: number) {
 
 export async function getRecruiterProfile(userId: string) {
   const db = getDb();
-  const row = await one(db.select().from(recruiterProfiles).where(eq(recruiterProfiles.userId, userId)));
+  const row = await one(
+    db
+      .select()
+      .from(recruiterProfiles)
+      .where(eq(recruiterProfiles.userId, userId)),
+  );
   if (!row) return null;
   const company = row.companyId
-    ? await one(db.select().from(companies).where(eq(companies.id, row.companyId)))
+    ? await one(
+        db.select().from(companies).where(eq(companies.id, row.companyId)),
+      )
     : null;
   return { ...row, company: company ? mapCompany(company) : null };
 }
@@ -298,9 +418,16 @@ export async function listJobApplicants(jobId: string) {
   const db = getDb();
   // Single query: applications joined to the candidate and its profile.
   const rows = await db
-    .select({ app: applications, candidate: candidateProfiles, profile: profiles })
+    .select({
+      app: applications,
+      candidate: candidateProfiles,
+      profile: profiles,
+    })
     .from(applications)
-    .leftJoin(candidateProfiles, eq(candidateProfiles.id, applications.candidateId))
+    .leftJoin(
+      candidateProfiles,
+      eq(candidateProfiles.id, applications.candidateId),
+    )
     .leftJoin(profiles, eq(profiles.id, candidateProfiles.userId))
     .where(eq(applications.jobId, jobId))
     .orderBy(desc(applications.appliedAt));
@@ -315,25 +442,39 @@ export async function listJobApplicants(jobId: string) {
 
 export async function countRecruiterApplicants(recruiterId: string) {
   const db = getDb();
-  const recruiterJobs = await db.select({ id: jobs.id }).from(jobs).where(eq(jobs.recruiterId, recruiterId));
+  const recruiterJobs = await db
+    .select({ id: jobs.id })
+    .from(jobs)
+    .where(eq(jobs.recruiterId, recruiterId));
   if (recruiterJobs.length === 0) return 0;
   const rows = await db
     .select({ id: applications.id })
     .from(applications)
-    .where(inArray(applications.jobId, recruiterJobs.map((j) => j.id)));
+    .where(
+      inArray(
+        applications.jobId,
+        recruiterJobs.map((j) => j.id),
+      ),
+    );
   return rows.length;
 }
 
 export async function countRecruiterShortlisted(recruiterId: string) {
   const db = getDb();
-  const recruiterJobs = await db.select({ id: jobs.id }).from(jobs).where(eq(jobs.recruiterId, recruiterId));
+  const recruiterJobs = await db
+    .select({ id: jobs.id })
+    .from(jobs)
+    .where(eq(jobs.recruiterId, recruiterId));
   if (recruiterJobs.length === 0) return 0;
   const rows = await db
     .select({ id: applications.id })
     .from(applications)
     .where(
       and(
-        inArray(applications.jobId, recruiterJobs.map((j) => j.id)),
+        inArray(
+          applications.jobId,
+          recruiterJobs.map((j) => j.id),
+        ),
         inArray(applications.status, ['shortlisted', 'hr_screen']),
       ),
     );
@@ -342,7 +483,11 @@ export async function countRecruiterShortlisted(recruiterId: string) {
 
 export async function listUnverifiedCompanies() {
   const db = getDb();
-  const rows = await db.select().from(companies).where(eq(companies.verified, false)).orderBy(companies.name);
+  const rows = await db
+    .select()
+    .from(companies)
+    .where(eq(companies.verified, false))
+    .orderBy(companies.name);
   return rows.map(mapCompany);
 }
 

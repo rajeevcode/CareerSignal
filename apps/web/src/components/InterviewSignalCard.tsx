@@ -51,7 +51,7 @@ export function InterviewSignalCard({
           )}
         >
           <span className={cn('text-2xl font-bold', getProbabilityColor(score))}>
-            {Math.round(score)}%
+            {Math.round(score)}/100
           </span>
         </div>
         <div>
@@ -59,7 +59,7 @@ export function InterviewSignalCard({
           <p className={cn('text-lg font-semibold', getProbabilityColor(score))}>
             {getProbabilityLabel(score)} signal
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">Estimate only — not a guarantee</p>
+          <p className="mt-1 text-xs text-muted-foreground">Heuristic fit score, not an interview probability. Missing context uses neutral defaults.</p>
         </div>
       </div>
 

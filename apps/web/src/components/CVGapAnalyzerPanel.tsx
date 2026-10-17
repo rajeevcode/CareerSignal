@@ -417,6 +417,14 @@ export function CVGapAnalyzerPanel({
     return 'Weak';
   }, [atsItems]);
 
+  if(gap?.generation_mode==='unavailable') return (
+    <section className="rounded-xl border border-border bg-card p-5">
+      <h3 className="font-semibold">Rewrite suggestions unavailable</h3>
+      <p className="mt-2 text-sm text-muted-foreground">Rewrite generation is not available for this analysis. Your source evidence and recorded match remain available. No post-rewrite score has been measured.</p>
+      {gap.missing_keywords.length>0&&<p className="mt-3 text-sm">Source keywords to review: {gap.missing_keywords.join(', ')}. Only add skills you can support.</p>}
+    </section>
+  );
+
   const hasCards = rewrites.length > 0;
   const placeholderInDraft =
     hasPlaceholder(draft.summary) || draft.experience.some(hasPlaceholder);
@@ -483,10 +491,10 @@ export function CVGapAnalyzerPanel({
             <ScoreStat label="Current JD Match" value={Math.round(gap.current_fit)} />
             <ScoreStat
               label="Est. after rewrite"
-              value={anyApplied ? estimate.jdMatch : Math.min(100, Math.round(gap.projected_fit))}
+              value={anyApplied ? estimate.jdMatch : Math.min(100, Math.round(gap.projected_fit ?? gap.current_fit))}
               tone="success"
             />
-            <ScoreStat label="ATS keyword match" value={anyApplied ? estimate.ats : Math.round(gap.ats_match_score)} tone="primary" />
+            <ScoreStat label="ATS keyword match" value={anyApplied ? estimate.ats : Math.round(gap.ats_match_score ?? gap.current_fit)} tone="primary" />
             <ScoreStat label="CV Score" value={Math.round(cvScore ?? 0)} />
             <div className="rounded-lg bg-card p-3 text-center">
               <p className="text-sm font-bold text-foreground">{getSignalBand(estimate.interviewSignal)}</p>

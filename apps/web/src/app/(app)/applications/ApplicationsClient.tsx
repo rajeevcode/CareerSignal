@@ -8,12 +8,9 @@ import { SignalBadge } from '@/components/ui/SignalBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { LockedFeature } from '@/components/ui/LockedFeature';
 import { ClipboardList } from 'lucide-react';
+import { APPLICATION_STAGES, type applicationAnalytics } from '@/lib/career-actions';
+import { ApplicationControls } from '@/components/applications/ApplicationControls';
 import { formatDate } from '@/lib/utils';
-
-const PIPELINE = [
-  'saved', 'applied', 'viewed', 'recruiter_viewed', 'shortlisted', 'hr_screen',
-  'technical_round', 'case_study', 'final_round', 'interview', 'offer', 'follow_up_needed', 'rejected', 'ghosted',
-] as const;
 
 interface AppWithJob extends Application {
   job?: Job;
@@ -21,12 +18,7 @@ interface AppWithJob extends Application {
 
 interface Props {
   applications: AppWithJob[];
-  analytics: {
-    total: number;
-    interviews: number;
-    responseRate: number;
-    followUpsDue: number;
-  };
+  analytics: ReturnType<typeof applicationAnalytics>;
   isPro?: boolean;
 }
 
@@ -51,13 +43,14 @@ export function ApplicationsClient({ applications, analytics, isPro = false }: P
     <>
       <PageHeader
         title="Applications"
-        subtitle="CareerOS-style tracker — board, table, and analytics"
+        subtitle="Track stages, manage follow-ups, and record your next action"
         actions={
           <div className="flex gap-2">
             {(['board', 'table', 'analytics'] as const).map((v) => (
               <button
                 key={v}
                 type="button"
+                aria-pressed={view === v}
                 onClick={() => setView(v)}
                 className={`rounded-lg px-3 py-1.5 text-sm capitalize ${view === v ? 'bg-primary-muted text-primary' : 'text-muted-foreground hover:bg-surface-muted'}`}
               >
@@ -70,11 +63,21 @@ export function ApplicationsClient({ applications, analytics, isPro = false }: P
 
       {view === 'analytics' && (
         isPro ? (
+          <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-4">
             <div className="card-surface p-4"><p className="text-sm text-muted-foreground">Applications</p><p className="text-2xl font-bold">{analytics.total}</p></div>
             <div className="card-surface p-4"><p className="text-sm text-muted-foreground">Interviews</p><p className="text-2xl font-bold">{analytics.interviews}</p></div>
-            <div className="card-surface p-4"><p className="text-sm text-muted-foreground">Response rate</p><p className="text-2xl font-bold">{analytics.responseRate}%</p></div>
+            <div className="card-surface p-4"><p className="text-sm text-muted-foreground">Response rate</p><p className="text-2xl font-bold">{analytics.responseRate == null ? '—' : `${analytics.responseRate}%`}</p></div>
             <div className="card-surface p-4"><p className="text-sm text-muted-foreground">Follow-ups due</p><p className="text-2xl font-bold">{analytics.followUpsDue}</p></div>
+          </div>
+          <p className="text-sm text-muted-foreground">{analytics.responded} recorded responses from {analytics.total} submitted applications; {analytics.pending} pending. Views, reminders, and ghosted applications are not employer responses. Interview counts include offers and current interview stages; historical stages are not available.</p>
+          <div className="card-surface overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <caption className="p-3 text-left font-semibold">Outcomes by exact job title — descriptive counts, not evidence of causation</caption>
+              <thead><tr><th className="p-3" scope="col">Role</th><th className="p-3" scope="col">Submitted</th><th className="p-3" scope="col">Responses</th><th className="p-3" scope="col">Interview / offer</th></tr></thead>
+              <tbody>{analytics.byRole.map((group) => <tr key={group.role} className="border-t border-border"><th scope="row" className="p-3 font-medium">{group.role}</th><td className="p-3">{group.total}</td><td className="p-3">{group.responded}</td><td className="p-3">{group.interviews}</td></tr>)}</tbody>
+            </table>
+          </div>
           </div>
         ) : (
           <LockedFeature
@@ -102,7 +105,7 @@ export function ApplicationsClient({ applications, analytics, isPro = false }: P
             <tbody>
               {applications.map((app) => (
                 <tr key={app.id} className="border-b border-border">
-                  <td className="p-3"><Link href={`/jobs/${app.job_id}`} className="font-medium hover:text-primary">{app.job?.title}</Link></td>
+                  <td className="p-3"><Link href={`/applications/${app.id}`} className="font-medium hover:text-primary">{app.job?.title}</Link></td>
                   <td className="p-3 capitalize">{app.status.replace(/_/g, ' ')}</td>
                   <td className="p-3">{formatDate(app.applied_at)}</td>
                   <td className="p-3">{app.interview_probability != null && <SignalBadge score={app.interview_probability} />}</td>
@@ -115,15 +118,19 @@ export function ApplicationsClient({ applications, analytics, isPro = false }: P
 
       {view === 'board' && (
         <div className="flex gap-4 overflow-x-auto pb-4">
-          {['applied', 'shortlisted', 'interview', 'offer', 'follow_up_needed'].map((stage) => (
+          {Object.keys(APPLICATION_STAGES).filter((stage) => applications.some((app) => app.status === stage)).map((stage) => (
             <div key={stage} className="w-64 shrink-0">
               <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{stage.replace(/_/g, ' ')}</h3>
               <div className="space-y-2">
                 {applications.filter((a) => a.status === stage).map((app) => (
-                  <div key={app.id} className="card-surface p-3">
-                    <Link href={`/jobs/${app.job_id}`} className="font-medium text-foreground hover:text-primary">{app.job?.title}</Link>
+                  <div key={app.id} id={`application-${app.id}`} className="card-surface scroll-mt-6 p-3">
+                    <Link href={`/applications/${app.id}`} className="font-medium text-foreground hover:text-primary">{app.job?.title}</Link>
                     <p className="text-xs text-muted-foreground">{app.job?.company?.name}</p>
                     {app.interview_probability != null && <div className="mt-2"><SignalBadge score={app.interview_probability} /></div>}
+                    <p className="mt-2 text-xs text-muted-foreground">Applied {formatDate(app.applied_at)}</p>
+                    {app.cv_version_id && <p className="mt-1 break-all text-xs text-muted-foreground">Submitted CV reference: {app.cv_version_id}</p>}
+                    {app.follow_up_due_at && <p className="mt-1 text-xs text-muted-foreground">Follow-up: {formatDate(app.follow_up_due_at)}</p>}
+                    <ApplicationControls key={app.updated_at} application={app} />
                   </div>
                 ))}
               </div>

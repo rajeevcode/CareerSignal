@@ -6,7 +6,8 @@ import { PostHogProvider } from '@/components/PostHogProvider';
 import { ToastProvider } from '@/components/ToastProvider';
 import { AuthGateProvider } from '@/components/auth/AuthGate';
 import { PaywallProvider } from '@/components/ui/PaywallModal';
-import { ThemeProvider, THEME_NO_FLASH_SCRIPT } from '@/components/theme/ThemeProvider';
+import { ThemeProvider } from '@/components/theme/ThemeProvider';
+import { THEME_NO_FLASH_SCRIPT } from '@/lib/theme-script';
 import { getCurrentUser } from '@/lib/auth/session';
 import './globals.css';
 
@@ -18,10 +19,12 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: 'CareerSignal — Build your CV. Match any job. Know your interview signal.',
+    default:
+      'CareerSignal — Build your CV. Match any job. Know your interview signal.',
     template: '%s | CareerSignal',
   },
-  description: 'Your AI career intelligence platform — from CV score to interview signal. Build ATS-ready CVs, match against any job description, and apply where you have the strongest signal.',
+  description:
+    'Your AI career intelligence platform — from CV score to interview signal. Build ATS-ready CVs, match against any job description, and apply where you have the strongest signal.',
   openGraph: {
     title: 'CareerSignal',
     description: 'From CV score to interview signal.',
@@ -29,10 +32,19 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const user = await getCurrentUser();
   const headerUser = user
-    ? { email: user.email, role: user.role, plan: user.plan, full_name: user.full_name }
+    ? {
+        email: user.email,
+        role: user.role,
+        plan: user.plan,
+        full_name: user.full_name,
+      }
     : null;
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
@@ -47,7 +59,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <AuthGateProvider>
                 <PaywallProvider>
                   <SiteHeader user={headerUser} />
-                  <main className="flex min-h-[calc(100vh-60px)] flex-col">{children}</main>
+                  <main className="flex min-h-[calc(100vh-60px)] flex-col">
+                    {children}
+                  </main>
                   <SiteFooter />
                 </PaywallProvider>
               </AuthGateProvider>

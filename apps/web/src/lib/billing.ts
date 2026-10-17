@@ -59,6 +59,27 @@ export type GateResult =
   | { allowed: true }
   | { allowed: false; reason: string; feature: FeatureKey };
 
+const FEATURE_KEYS = new Set<FeatureKey>([
+  'upload_cv',
+  'create_cv_version',
+  'jd_match',
+  'advanced_jd_match',
+  'advanced_cv_score',
+  'cv_rewrite',
+  'save_job',
+  'track_application',
+  'application_analytics',
+  'interview_prep',
+  'career_coach',
+  'cover_letter',
+  'export_cv',
+  'priority_alerts',
+]);
+
+function isFeatureKey(value: unknown): value is FeatureKey {
+  return typeof value === 'string' && FEATURE_KEYS.has(value as FeatureKey);
+}
+
 export function canUseFeature(state: PlanState, feature: FeatureKey): GateResult {
   if (state.plan === 'pro') return { allowed: true };
   const u = state.usage;
@@ -106,9 +127,13 @@ export function remaining(state: PlanState) {
 
 /** Parse a 402 paywall response body shape: { error, upgrade, feature }. */
 export function parsePaywallError(body: unknown): { reason: string; feature?: FeatureKey } | null {
-  if (body && typeof body === 'object' && 'upgrade' in body && (body as { upgrade?: boolean }).upgrade) {
-    const b = body as { error?: string; feature?: FeatureKey };
-    return { reason: b.error || 'This is a Pro feature.', feature: b.feature };
+  if (!body || typeof body !== 'object' || !('upgrade' in body) || body.upgrade !== true) {
+    return null;
   }
-  return null;
+
+  const error = 'error' in body && typeof body.error === 'string' && body.error.trim()
+    ? body.error
+    : 'This is a Pro feature.';
+  const feature = 'feature' in body && isFeatureKey(body.feature) ? body.feature : undefined;
+  return { reason: error, feature };
 }

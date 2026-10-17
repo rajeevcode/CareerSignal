@@ -140,6 +140,6 @@ def job_dict_from_jd_text(jd_text: str, title: str = "Pasted Job") -> dict[str, 
         "visa_sponsorship": False,
         "salary_min": None,
         "salary_max": None,
-        "applicant_count": 50,
+        "applicant_count": None,
         "posted_at": "",
     }

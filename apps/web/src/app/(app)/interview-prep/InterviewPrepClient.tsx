@@ -5,25 +5,30 @@ import Link from 'next/link';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { LoadingState } from '@/components/ui/LoadingState';
 
-export function InterviewPrepClient({ jobs }: { jobs: { id: string; title: string; company: string }[] }) {
+export function InterviewPrepClient({ jobs, initialJobId }: { jobs: { id: string; title: string; company: string }[]; initialJobId?: string }) {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{
     readiness_score?: number;
     questions?: string[];
     company_summary?: string;
     plan_30_90?: string;
   } | null>(null);
-  const [jobId, setJobId] = useState(jobs[0]?.id || '');
+  const [jobId, setJobId] = useState(initialJobId ?? jobs[0]?.id ?? '');
 
   async function generate() {
     setLoading(true);
-    const res = await fetch('/api/interview-prep', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ job_id: jobId || undefined }),
-    });
-    setResult(await res.json());
-    setLoading(false);
+    setError(null);
+    try {
+      const res = await fetch('/api/interview-prep', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: jobId || undefined }), signal: AbortSignal.timeout(60_000),
+      });
+      if (!res.ok) throw new Error(res.status === 402 ? 'Interview preparation requires a Pro plan.' : 'Unable to generate preparation. Please try again.');
+      setResult(await res.json());
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Unable to generate preparation. Please try again.');
+    } finally { setLoading(false); }
   }
 
   return (
@@ -41,6 +46,7 @@ export function InterviewPrepClient({ jobs }: { jobs: { id: string; title: strin
           Generate prep plan
         </button>
       </div>
+      {error && <p role="alert" className="mt-4 text-sm text-risk">{error}</p>}
       {loading && <LoadingState message="Building your interview prep..." className="mt-6" />}
       {result && !loading && (
         <div className="mt-6 space-y-4">

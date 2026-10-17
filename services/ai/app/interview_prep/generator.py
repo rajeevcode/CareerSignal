@@ -18,7 +18,7 @@ async def generate_interview_prep(candidate_id: str, job_id: str | None = None) 
     job: dict[str, Any] | None = None
     company: dict[str, Any] | None = None
     if job_id:
-        job = sqlite_db.get_job(job_id)
+        job = sqlite_db.get_job(job_id, candidate_id)
         company = sqlite_db.get_company_for_job(job_id) if job else None
 
     if not settings.openai_api_key:

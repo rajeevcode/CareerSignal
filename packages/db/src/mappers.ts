@@ -122,13 +122,17 @@ export function mapMatchScore(row: DbMatch, job?: Job): MatchScore {
   };
 }
 
-export function mapApplication(row: typeof applications.$inferSelect, job?: Job): Application {
+export function mapApplication(
+  row: typeof applications.$inferSelect, job?: Job, options?: { includePrivateNotes?: boolean },
+): Application {
   return {
     id: row.id,
     candidate_id: row.candidateId,
     job_id: row.jobId,
     status: row.status,
     cv_version_id: row.cvVersionId,
+    // Recruiter-facing mappings must never include candidate notes or reminders.
+    ...(options?.includePrivateNotes ? { follow_up_due_at: row.followUpDueAt, next_action: row.nextAction } : {}),
     match_score: row.matchScore,
     interview_probability: row.interviewProbability,
     applied_at: row.appliedAt,

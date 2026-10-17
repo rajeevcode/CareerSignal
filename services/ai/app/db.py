@@ -110,9 +110,22 @@ def get_candidate(candidate_id: str) -> dict[str, Any] | None:
         return _row_to_candidate(row, skills)
 
 
-def get_job(job_id: str) -> dict[str, Any] | None:
+def get_job(job_id: str, candidate_id: str | None = None) -> dict[str, Any] | None:
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM jobs WHERE id = %s", (job_id,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM jobs WHERE id = %s AND "
+            "((captured_by IS NULL AND status = 'published') OR captured_by = %s)",
+            (job_id, candidate_id),
+        ).fetchone()
+        return _row_to_job(row) if row else None
+
+
+def get_job_for_parsing(job_id: str) -> dict[str, Any] | None:
+    """Internal admin/recruiter creation path may parse unpublished public jobs."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM jobs WHERE id = %s AND captured_by IS NULL", (job_id,)
+        ).fetchone()
         return _row_to_job(row) if row else None
 
 
@@ -319,7 +332,7 @@ def upsert_match_score(
                 domain_score = %s, seniority_score = %s, location_score = %s, cv_score = %s,
                 competition_score = %s, freshness_score = %s, final_score = %s,
                 jd_match_score = %s, interview_signal = %s,
-                explanation_json = %s, computed_at = %s
+                explanation_json = %s, computed_at = %s, scoring_version = 'heuristic-fit-v2'
                 WHERE candidate_id = %s AND job_id = %s""",
                 (*values, candidate_id, job_id),
             )
@@ -328,8 +341,8 @@ def upsert_match_score(
                 """INSERT INTO match_scores
                 (id, candidate_id, job_id, skill_score, experience_score, role_similarity_score,
                  domain_score, seniority_score, location_score, cv_score, competition_score, freshness_score,
-                 final_score, jd_match_score, interview_signal, explanation_json, computed_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                 final_score, jd_match_score, interview_signal, explanation_json, computed_at, scoring_version)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'heuristic-fit-v2')""",
                 (str(uuid.uuid4()), candidate_id, job_id, *values),
             )
 

@@ -95,7 +95,11 @@ def freshness_score(posted_at: str) -> float:
         return 50.0
 
 
-def competition_score(applicant_count: int) -> float:
+def competition_score(applicant_count: int | None) -> float:
+    # Zero may mean a local counter or an unobserved external applicant pool.
+    # Do not interpret it as verified low competition.
+    if applicant_count is None or applicant_count <= 0:
+        return 50.0
     if applicant_count <= 10:
         return 90.0
     if applicant_count <= 50:
@@ -247,14 +251,14 @@ def _fallback_explanation(
 
     gaps = []
     if missing:
-        gaps.append(f"Missing keywords: {', '.join(list(missing)[:4])}")
+        gaps.append(f"Not recorded in structured skills: {', '.join(list(missing)[:4])}")
     if breakdown["location_score"] < 60:
         gaps.append("Location or work authorization may reduce shortlisting likelihood")
 
     return {
-        "summary": f"Interview Signal is {breakdown.get('interview_signal', breakdown['final_score']):.0f}% based on JD match, CV score, and job context.",
-        "strengths": strengths or ["Relevant background for this role type"],
-        "gaps": gaps or ["Some required skills not prominently visible in profile"],
+        "summary": f"Interview Signal is {breakdown.get('interview_signal', breakdown['final_score']):.0f}/100 based on JD match, CV score, and job context.",
+        "strengths": strengths,
+        "gaps": gaps,
         "improvements": [
             "Highlight matching skills in CV summary",
             "Add quantified achievements for relevant experience",

@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Local workflow screenshots and traces (may contain test session cookies)
+/test-results/workflow/

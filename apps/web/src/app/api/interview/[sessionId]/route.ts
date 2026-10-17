@@ -4,7 +4,6 @@ import {
   getDb,
   interviewSessions,
   interviewMessages,
-  candidateProfiles,
   mapInterviewSession,
   mapInterviewMessage,
   newId,

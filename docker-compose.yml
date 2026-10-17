@@ -1,11 +1,20 @@
 # CareerSignal — dev Docker stack (Supabase-backed).
-# Reads secrets from the root .env (gitignored). Web + AI services only;
-# Postgres/Auth/Storage are provided by Supabase (hosted or `supabase start`).
+# Reads secrets from the root .env (gitignored). Postgres/Auth/Storage are
+# provided by Supabase (hosted or `supabase start`).
 #
 #   docker compose up --build
 #
 # Web → http://localhost:3000   AI → http://localhost:8011
 services:
+  migrate:
+    profiles: ["setup"]
+    build:
+      context: .
+      dockerfile: docker/migrations/Dockerfile
+    environment:
+      SUPABASE_DB_URL: ${SUPABASE_DB_URL}
+    restart: "no"
+
   ai:
     build:
       context: ./services/ai
@@ -52,6 +61,12 @@ services:
       AI_INTERNAL_TOKEN: ${INTERNAL_API_TOKEN:-}
       NEXT_PUBLIC_APP_URL: http://localhost:${WEB_PORT:-3000}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # Local-only checkout simulator. Production Compose pins this to "false".
+      ALLOW_MOCK_CHECKOUT: ${ALLOW_MOCK_CHECKOUT:-true}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      CAREER_TOKEN_ENCRYPTION_KEY: ${CAREER_TOKEN_ENCRYPTION_KEY:-}
       NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY:-}
       NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST:-https://app.posthog.com}
     # No bind mount: use the image's installed node_modules + copied source as-built.
@@ -60,3 +75,29 @@ services:
     depends_on:
       ai:
         condition: service_started
+
+  career-maintenance:
+    build:
+      context: ./services/ai
+      dockerfile: Dockerfile
+      target: runner
+    command: ["python", "-m", "app.maintenance"]
+    environment:
+      SUPABASE_DB_URL: ${SUPABASE_DB_URL}
+    depends_on:
+      ai:
+        condition: service_started
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,time; assert time.time()-os.stat('/tmp/career-maintenance-heartbeat').st_mtime < 180"]
+      interval: 60s
+      timeout: 5s
+      start_period: 90s
+      retries: 3
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true

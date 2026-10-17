@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 import { aiFetchBestEffort } from '@/lib/utils';
-import { getDb, jobs, companies, newId, toIsoNow } from '@careersignal/db';
+import { getDb, jobs, newId, toIsoNow } from '@careersignal/db';
 
 async function requireAdmin() {
   const session = await getSession();

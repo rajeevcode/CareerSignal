@@ -43,7 +43,7 @@ test('JD Match page renders the input form and submit control', async ({ page })
 
   await expect(page.getByRole('heading', { name: 'JD Match' })).toBeVisible();
   await expect(page.getByPlaceholder('Paste the full job description here...')).toBeVisible();
-  await expect(page.getByPlaceholder('Job title (optional)')).toBeVisible();
+  await expect(page.getByPlaceholder('Optional, e.g. Senior Product Manager')).toBeVisible();
 
   // Submit is disabled until a JD is entered, then enabled (panel is reachable).
   const submit = page.getByRole('button', { name: 'Get JD Match Score' });

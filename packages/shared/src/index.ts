@@ -174,6 +174,8 @@ export interface Application {
   job_id: string;
   status: ApplicationStatus;
   cv_version_id: string | null;
+  follow_up_due_at?: string | null;
+  next_action?: string | null;
   match_score: number | null;
   interview_probability: number | null;
   applied_at: string;
@@ -262,9 +264,10 @@ export interface CvGapAnalysis {
   suggested_summary: string;
   suggested_bullets: string[];
   current_fit: number;
-  projected_fit: number;
-  ats_match_score: number;
-  recruiter_readability_score: number;
+  projected_fit: number | null;
+  ats_match_score: number | null;
+  recruiter_readability_score: number | null;
+  generation_mode?: 'provider' | 'unavailable';
   risk_notes: string[];
   // New (optional for back-compat with persisted explanation rows).
   bullet_rewrites?: BulletRewrite[];

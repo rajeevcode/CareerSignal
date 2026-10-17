@@ -20,6 +20,7 @@ export const PROTECTED_CANDIDATE_ROUTES = [
   '/saved',
   '/applied',
   '/applications',
+  '/career',
   '/interview-prep',
   '/resume-score',
   '/jd-match-tool',

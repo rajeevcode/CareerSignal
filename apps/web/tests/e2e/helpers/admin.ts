@@ -13,7 +13,12 @@ export function currentMonth(): string {
 }
 
 export async function getCandidateId(userId: string): Promise<string> {
-  const { data } = await admin.from('candidate_profiles').select('id').eq('user_id', userId).maybeSingle();
+  const { data, error } = await admin
+    .from('candidate_profiles')
+    .select('id')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw new Error(`Could not load candidate for ${userId}: ${error.message}`);
   if (!data) throw new Error(`No candidate_profile for user ${userId}`);
   return data.id as string;
 }
@@ -85,13 +90,51 @@ export async function countRows(table: string, candidateId: string): Promise<num
 }
 
 export async function setRole(userId: string, role: 'candidate' | 'recruiter' | 'admin') {
-  await admin.from('profiles').update({ role }).eq('id', userId);
+  const { data, error } = await admin
+    .from('profiles')
+    .update({ role })
+    .eq('id', userId)
+    .select('id')
+    .maybeSingle();
+  if (error) throw new Error(`Could not set ${userId} role to ${role}: ${error.message}`);
+  if (!data) throw new Error(`No profile found while setting ${userId} role to ${role}`);
+}
+
+/** Bind a recruiter fixture to the company it is authorized to represent. */
+export async function linkRecruiterToCompany(userId: string, companyId: string) {
+  const { error } = await admin.from('recruiter_profiles').upsert(
+    {
+      user_id: userId,
+      company_id: companyId,
+      title: 'QA Recruiter',
+      verified: true,
+      created_at: new Date().toISOString(),
+    },
+    { onConflict: 'user_id' },
+  );
+  if (error) throw new Error(`Could not link recruiter ${userId}: ${error.message}`);
 }
 
 /** Find an auth user id by email (admin list, client-side match). */
 export async function findUserIdByEmail(email: string): Promise<string | null> {
-  const { data } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  const { data, error } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  if (error) throw new Error(`Could not list auth users: ${error.message}`);
   return data?.users.find((u) => u.email === email)?.id ?? null;
+}
+
+/**
+ * Confirm a disposable E2E user's email without weakening the application's
+ * real email-confirmation policy. The helper is only imported by test code.
+ */
+export async function confirmTestUser(email: string): Promise<string> {
+  const userId = await findUserIdByEmail(email);
+  if (!userId) throw new Error(`No auth user found for ${email}`);
+
+  const { error } = await admin.auth.admin.updateUserById(userId, {
+    email_confirm: true,
+  });
+  if (error) throw new Error(`Could not confirm ${email}: ${error.message}`);
+  return userId;
 }
 
 export async function cleanupUser(email: string) {
@@ -113,7 +156,8 @@ export async function seededJobIds(limit = 12): Promise<string[]> {
 }
 
 export async function getCompanyId(): Promise<string> {
-  const { data } = await admin.from('companies').select('id').limit(1).maybeSingle();
+  const { data, error } = await admin.from('companies').select('id').limit(1).maybeSingle();
+  if (error) throw new Error(`Could not load a seeded company: ${error.message}`);
   if (!data) throw new Error('No seeded company');
   return data.id as string;
 }

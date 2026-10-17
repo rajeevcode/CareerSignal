@@ -1,7 +1,13 @@
 import { test, expect } from '@playwright/test';
 import { preflight, TEST_PASSWORD } from '../env';
 import { registerUser, guestContext } from '../helpers/register';
-import { cleanupUser, setRole, getCompanyId, adminClient } from '../helpers/admin';
+import {
+  adminClient,
+  cleanupUser,
+  getCompanyId,
+  linkRecruiterToCompany,
+  setRole,
+} from '../helpers/admin';
 
 test.beforeAll(async () => {
   await preflight();
@@ -45,6 +51,8 @@ test.describe('Recruiter API — POST /api/recruiter/jobs (REC)', () => {
     const user = await registerUser();
     try {
       await setRole(user.userId, 'recruiter');
+      const companyId = await getCompanyId();
+      await linkRecruiterToCompany(user.userId, companyId);
       createdByUser.add(user.userId);
       // Re-login to refresh the session cookie with the new role.
       const login = await user.ctx.post('/api/auth/login', {
@@ -53,7 +61,7 @@ test.describe('Recruiter API — POST /api/recruiter/jobs (REC)', () => {
       expect(login.status(), 'recruiter re-login should succeed').toBe(200);
 
       const res = await user.ctx.post('/api/recruiter/jobs', {
-        data: { company_id: await getCompanyId(), title: 'QA Role', description: 'desc' },
+        data: { company_id: companyId, title: 'QA Role', description: 'desc' },
       });
       expect(res.status(), 'recruiter should create job').toBe(200);
       const { id } = await res.json();

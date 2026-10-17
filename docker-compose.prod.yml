@@ -71,6 +71,10 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       EMAIL_FROM: ${EMAIL_FROM:-CareerSignal <onboarding@resend.dev>}
       ALLOW_MOCK_CHECKOUT: "false"
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      CAREER_TOKEN_ENCRYPTION_KEY: ${CAREER_TOKEN_ENCRYPTION_KEY:-}
     ports:
       - "${BIND_ADDRESS:-0.0.0.0}:${WEB_PORT:-3000}:3000"
     depends_on:
@@ -88,6 +92,32 @@ services:
       - /app/apps/web/.next/cache:rw,noexec,nosuid,size=128m
     cap_drop:
       - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  career-maintenance:
+    build:
+      context: ./services/ai
+      dockerfile: Dockerfile
+      target: runner
+    command: ["python", "-m", "app.maintenance"]
+    environment:
+      SUPABASE_DB_URL: ${SUPABASE_DB_URL:?Set SUPABASE_DB_URL in .env}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks:
+      - backend
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,time; assert time.time()-os.stat('/tmp/career-maintenance-heartbeat').st_mtime < 180"]
+      interval: 60s
+      timeout: 5s
+      start_period: 90s
+      retries: 3
     security_opt:
       - no-new-privileges:true
 

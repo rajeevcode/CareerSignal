@@ -131,7 +131,7 @@ async def analyze_cv_job_gap(
     cv_bullets = [b for b in (cv_bullets or []) if b and b.strip()][:8]
 
     if not settings.openai_api_key:
-        return _fallback_gap_analysis(job, candidate_skills, current_fit, role_style, cv_bullets)
+        return _fallback_gap_analysis(job, candidate_skills, current_fit, role_style, cv_bullets, cv_text)
 
     role_label = _role_label(role_style)
     role_guide = _role_guide(role_style)
@@ -199,12 +199,12 @@ Rules:
         result = json.loads(response.choices[0].message.content or "{}")
         finalized = _finalize_gap(result, current_fit, role_style)
         if not finalized["bullet_rewrites"]:
-            return _fallback_gap_analysis(job, candidate_skills, current_fit, role_style, cv_bullets)
+            return _fallback_gap_analysis(job, candidate_skills, current_fit, role_style, cv_bullets, cv_text)
         return finalized
     except BudgetExceeded:
         raise
     except Exception:
-        return _fallback_gap_analysis(job, candidate_skills, current_fit, role_style, cv_bullets)
+        return _fallback_gap_analysis(job, candidate_skills, current_fit, role_style, cv_bullets, cv_text)
 
 
 def _structured_fallback_bullet(before: str, keyword: str, index: int) -> dict[str, Any]:
@@ -225,42 +225,23 @@ def _structured_fallback_bullet(before: str, keyword: str, index: int) -> dict[s
 
 
 def _fallback_gap_analysis(
-    job: dict[str, Any],
-    candidate_skills: list[str],
-    current_fit: float,
-    role_style: str = "ai_product_manager",
-    cv_bullets: list[str] | None = None,
+    job: dict[str, Any], candidate_skills: list[str], current_fit: float,
+    role_style: str = "ai_product_manager", cv_bullets: list[str] | None = None,
+    cv_text: str = "",
 ) -> dict[str, Any]:
-    req = normalize_skills(job.get("required_skills") or [])
-    cand_lower = {s.lower() for s in candidate_skills}
-    missing = [s for s in req if s.lower() not in cand_lower]
-    keywords = missing or candidate_skills or ["stakeholder alignment"]
-    cv_bullets = [b for b in (cv_bullets or []) if b and b.strip()]
-
-    sources = cv_bullets[:4] if cv_bullets else [""] * min(3, len(keywords))
-    rewrites = [
-        _structured_fallback_bullet(sources[i] if i < len(sources) else "", keywords[i % len(keywords)], i)
-        for i in range(max(1, len(sources)))
-    ]
-
-    role_label = _role_label(role_style)
-    summary = (
-        f"{role_label} with [N]+ years driving [X% growth] across "
-        f"{', '.join(candidate_skills[:3]) or 'product, data, and AI'} initiatives; "
-        f"shipped [N] products from 0 to 1 and improved [key operational metric] by [X%]."
-    )
-
-    result = {
-        "missing_keywords": missing[:10],
-        "skills_to_add": missing[:6],
-        "suggested_summary": summary,
-        "bullet_rewrites": rewrites,
-        "recruiter_readability_score": 70,
-        "risk_notes": ["Only use metrics and skills you can honestly support in interviews."],
-        "projected_fit": min(95, current_fit + 18),
-        "ats_match_score": current_fit,
+    # Source-only analysis remains available without inventing rewrite content,
+    # quality scores or an unexecuted post-rewrite score increase.
+    required = normalize_skills(job.get("required_skills") or [])
+    recorded = {s.lower() for s in normalize_skills(candidate_skills + extract_skills_from_text(cv_text))}
+    return {
+        "missing_keywords": [skill for skill in required if skill.lower() not in recorded][:10],
+        "skills_to_add": [], "suggested_summary": "", "suggested_bullets": [],
+        "weak_bullets": [bullet for bullet in (cv_bullets or []) if bullet.strip()],
+        "bullet_rewrites": [], "current_fit": round(float(current_fit), 1),
+        "projected_fit": None, "ats_match_score": None, "recruiter_readability_score": None,
+        "risk_notes": ["Rewrite generation is unavailable for this analysis. No projected score has been measured."],
+        "role_style": role_style, "truthfulness_warning": "", "generation_mode": "unavailable",
     }
-    return _finalize_gap(result, current_fit, role_style)
 
 
 async def rewrite_single_bullet(

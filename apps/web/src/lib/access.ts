@@ -1,5 +1,5 @@
 import 'server-only';
-import { eq, count } from 'drizzle-orm';
+import { eq, count, sql, and } from 'drizzle-orm';
 import {
   getDb,
   subscriptions,
@@ -13,6 +13,7 @@ import {
 import type { SessionPayload } from '@/lib/auth/token';
 import {
   canUseFeature,
+  FREE_LIMITS,
   type FeatureKey,
   type GateResult,
   type PlanState,
@@ -101,29 +102,28 @@ export function gate(planState: PlanState, feature: FeatureKey): GateResult {
   return canUseFeature(planState, feature);
 }
 
-/**
- * Record a successful JD match against the Free monthly quota (lazy reset) in usage_limits.
- * No-op effect for Pro callers (they don't call this). Call only AFTER the match succeeds.
- */
-export async function incrementJdMatch(userId: string): Promise<void> {
-  const db = getDb();
+/** Reserve capacity atomically before starting expensive work. No lock spans the AI call. */
+export async function reserveJdMatch(userId: string): Promise<string | null> {
   const month = currentMonth();
-  const usage = await one(db.select().from(usageLimits).where(eq(usageLimits.userId, userId)));
-  if (!usage) {
-    await db.insert(usageLimits).values({
-      userId,
-      jdMatchCountMonthly: 1,
-      currentMonth: month,
-      createdAt: toIsoNow(),
-      updatedAt: toIsoNow(),
-    });
-    return;
-  }
-  const nextCount = usage.currentMonth === month ? usage.jdMatchCountMonthly + 1 : 1;
-  await db
-    .update(usageLimits)
-    .set({ jdMatchCountMonthly: nextCount, currentMonth: month, updatedAt: toIsoNow() })
-    .where(eq(usageLimits.userId, userId));
+  const used = sql<number>`case when ${usageLimits.currentMonth} = ${month}
+    then ${usageLimits.jdMatchCountMonthly} else 0 end`;
+  const rows = await getDb().insert(usageLimits).values({
+    userId, jdMatchCountMonthly: 1, currentMonth: month,
+    createdAt: toIsoNow(), updatedAt: toIsoNow(),
+  }).onConflictDoUpdate({
+    target: usageLimits.userId,
+    set: { jdMatchCountMonthly: sql`${used} + 1`, currentMonth: month, updatedAt: toIsoNow() },
+    setWhere: sql`${used} < ${FREE_LIMITS.jdMatchesMonthly}`,
+  }).returning({ id: usageLimits.id });
+  return rows.length ? month : null;
+}
+
+/** Refund only the reservation's month; never decrement a newly reset month's counter. */
+export async function releaseJdMatch(userId: string, month: string): Promise<void> {
+  await getDb().update(usageLimits).set({
+    jdMatchCountMonthly: sql`greatest(0, ${usageLimits.jdMatchCountMonthly} - 1)`,
+    updatedAt: toIsoNow(),
+  }).where(and(eq(usageLimits.userId, userId), eq(usageLimits.currentMonth, month)));
 }
 
 /** Standard 402 paywall response body. */

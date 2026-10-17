@@ -26,6 +26,7 @@ const links = [
   { href: '/jd-match-tool', label: 'JD Match', icon: Sparkles },
   { href: '/jobs', label: 'Jobs', icon: Search },
   { href: '/applications', label: 'Applications', icon: ClipboardList },
+  { href: '/career', label: 'Career Workspace', icon: GraduationCap },
   { href: '/cover-letters', label: 'Cover Letters', icon: Mail },
   { href: '/interview-prep', label: 'Interview Prep', icon: GraduationCap },
   { href: '/career-coach', label: 'Career Coach', icon: MessageCircle },

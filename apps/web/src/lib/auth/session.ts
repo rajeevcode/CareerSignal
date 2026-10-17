@@ -125,7 +125,8 @@ export async function refreshSessionPlan(session: SessionPayload) {
 }
 
 /** Supabase manages auth cookies via the SSR client; these remain for call-site compatibility. */
-export async function setSessionCookie(_payload: SessionPayload) {
+export async function setSessionCookie(payload: SessionPayload) {
+  void payload;
   /* no-op: Supabase SSR client manages cookies */
 }
 

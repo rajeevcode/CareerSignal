@@ -21,7 +21,7 @@ export function ProbabilityMap({ entries, onboardingComplete = true }: Props) {
   if (!onboardingComplete) {
     return (
       <div className="rounded-xl border border-dashed border-border bg-card p-6 text-center">
-        <p className="text-sm text-muted-foreground">Complete onboarding to see your interview probability map</p>
+        <p className="text-sm text-muted-foreground">Complete onboarding to see your role fit map</p>
       </div>
     );
   }
@@ -29,7 +29,7 @@ export function ProbabilityMap({ entries, onboardingComplete = true }: Props) {
   if (entries.length === 0) {
     return (
       <div className="rounded-xl border border-border bg-card p-6">
-        <h2 className="font-semibold text-foreground">Your interview probability map</h2>
+        <h2 className="font-semibold text-foreground">Your role fit map</h2>
         <p className="mt-2 text-sm text-muted-foreground">Upload your CV and visit recommended jobs to generate match scores.</p>
       </div>
     );
@@ -39,14 +39,14 @@ export function ProbabilityMap({ entries, onboardingComplete = true }: Props) {
 
   return (
     <div className="rounded-xl border border-border bg-card p-6">
-      <h2 className="font-semibold text-foreground">Your interview probability map</h2>
+      <h2 className="font-semibold text-foreground">Your role fit map</h2>
       <p className="mt-1 text-sm text-muted-foreground">Average match score {sourceLabel}</p>
       <div className="mt-5 space-y-4">
         {entries.map((entry) => (
           <div key={entry.label}>
             <div className="flex items-center justify-between text-sm">
               <span className="font-medium text-foreground">{entry.label}</span>
-              <span className={`font-semibold ${textColor(entry.avg_score)}`}>{entry.avg_score}%</span>
+              <span className={`font-semibold ${textColor(entry.avg_score)}`}>{entry.avg_score}/100</span>
             </div>
             <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted">
               <div

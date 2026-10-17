@@ -1,0 +1,8 @@
+{
+  "manifest_version": 3,
+  "name": "CareerSignal Job Capture",
+  "version": "1.0.0",
+  "description": "Review and capture the job posting on your active tab into CareerSignal.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "action": { "default_popup": "popup.html" }
+}

@@ -1,7 +1,7 @@
 'use client';
 
 import { Trash2, Download } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { usePaywall } from '@/components/ui/PaywallModal';
 import { parsePaywallError } from '@/lib/billing';
@@ -14,14 +14,76 @@ interface Version {
 }
 
 const DRAFT_KEY = 'cv-builder-draft';
+const DRAFT_CHANGE_EVENT = 'careersignal:cv-builder-draft-change';
+
+interface CvDraft {
+  summary: string;
+  experience: string[];
+}
+
+const EMPTY_DRAFT: CvDraft = { summary: '', experience: [] };
+
+function getDraftSnapshot(): string | null {
+  try {
+    return window.localStorage.getItem(DRAFT_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function getServerDraftSnapshot(): null {
+  return null;
+}
+
+function subscribeToDraft(onStoreChange: () => void): () => void {
+  window.addEventListener('storage', onStoreChange);
+  window.addEventListener(DRAFT_CHANGE_EVENT, onStoreChange);
+  return () => {
+    window.removeEventListener('storage', onStoreChange);
+    window.removeEventListener(DRAFT_CHANGE_EVENT, onStoreChange);
+  };
+}
+
+function parseDraft(raw: string | null): CvDraft {
+  if (!raw) return EMPTY_DRAFT;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return EMPTY_DRAFT;
+    const value = parsed as { summary?: unknown; experience?: unknown };
+    return {
+      summary: typeof value.summary === 'string' ? value.summary : '',
+      experience: Array.isArray(value.experience)
+        ? value.experience.filter((bullet): bullet is string => typeof bullet === 'string' && Boolean(bullet))
+        : [],
+    };
+  } catch {
+    return EMPTY_DRAFT;
+  }
+}
+
+function persistDraft(next: Partial<CvDraft>): void {
+  try {
+    const raw = window.localStorage.getItem(DRAFT_KEY);
+    const current: unknown = raw ? JSON.parse(raw) : {};
+    const draft = current && typeof current === 'object' ? current : {};
+    window.localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...draft, ...next }));
+    window.dispatchEvent(new Event(DRAFT_CHANGE_EVENT));
+  } catch {
+    // Storage can be unavailable or contain malformed JSON.
+  }
+}
 
 export function CVBuilderClient() {
   const { open: openPaywall } = usePaywall();
   const [versions, setVersions] = useState<Version[]>([]);
   const [name, setName] = useState('AI Product Manager CV');
-  const [summary, setSummary] = useState('');
-  const [experience, setExperience] = useState<string[]>([]);
   const [exporting, setExporting] = useState(false);
+  const rawDraft = useSyncExternalStore(
+    subscribeToDraft,
+    getDraftSnapshot,
+    getServerDraftSnapshot,
+  );
+  const { summary, experience } = useMemo(() => parseDraft(rawDraft), [rawDraft]);
 
   async function exportPdf() {
     setExporting(true);
@@ -51,43 +113,16 @@ export function CVBuilderClient() {
 
   useEffect(() => {
     fetch('/api/cv-builder').then((r) => r.json()).then((d) => setVersions(d.versions || [])).catch(() => null);
-    // Hydrate from any draft handed off from the "Use this bullet" action.
-    try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (raw) {
-        const draft = JSON.parse(raw);
-        if (typeof draft.summary === 'string' && draft.summary) setSummary(draft.summary);
-        if (Array.isArray(draft.experience)) setExperience(draft.experience.filter(Boolean));
-      }
-    } catch {
-      // ignore malformed draft
-    }
   }, []);
 
-  function persistDraft(next: { summary?: string; experience?: string[] }) {
-    try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      const draft = raw ? JSON.parse(raw) : { summary: '', experience: [], skills: [] };
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...draft, ...next }));
-    } catch {
-      // ignore
-    }
-  }
-
   function updateBullet(i: number, value: string) {
-    setExperience((prev) => {
-      const next = prev.map((b, idx) => (idx === i ? value : b));
-      persistDraft({ experience: next });
-      return next;
+    persistDraft({
+      experience: experience.map((bullet, index) => (index === i ? value : bullet)),
     });
   }
 
   function removeBullet(i: number) {
-    setExperience((prev) => {
-      const next = prev.filter((_, idx) => idx !== i);
-      persistDraft({ experience: next });
-      return next;
-    });
+    persistDraft({ experience: experience.filter((_, index) => index !== i) });
   }
 
   async function save() {
@@ -115,7 +150,6 @@ export function CVBuilderClient() {
           <textarea
             value={summary}
             onChange={(e) => {
-              setSummary(e.target.value);
               persistDraft({ summary: e.target.value });
             }}
             rows={6}

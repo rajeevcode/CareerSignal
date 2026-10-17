@@ -13,7 +13,7 @@ export function ExplainabilityPanel({ explanation }: Props) {
           <CheckCircle2 className="h-5 w-5 text-success" />
           <h3 className="font-semibold text-foreground">Why this job fits you</h3>
         </div>
-        <p className="mt-1 text-xs text-muted-foreground">You are likely to be considered because:</p>
+        <p className="mt-1 text-xs text-muted-foreground">Recorded strengths to review:</p>
         <ul className="mt-3 space-y-2">
           {(explanation.strengths || []).map((s, i) => (
             <li key={i} className="flex gap-2 text-sm text-foreground">
@@ -29,7 +29,7 @@ export function ExplainabilityPanel({ explanation }: Props) {
           <AlertTriangle className="h-5 w-5 text-warning" />
           <h3 className="font-semibold text-foreground">Why you may not be shortlisted</h3>
         </div>
-        <p className="mt-1 text-xs text-muted-foreground">Your probability is reduced because:</p>
+        <p className="mt-1 text-xs text-muted-foreground">Recorded gaps to review:</p>
         <ul className="mt-3 space-y-2">
           {(explanation.gaps || []).map((g, i) => (
             <li key={i} className="flex gap-2 text-sm text-foreground">
@@ -43,7 +43,7 @@ export function ExplainabilityPanel({ explanation }: Props) {
       <div className="rounded-xl border border-primary/20 bg-primary/10 p-5">
         <div className="flex items-center gap-2">
           <Lightbulb className="h-5 w-5 text-primary" />
-          <h3 className="font-semibold text-foreground">How to improve your chance</h3>
+          <h3 className="font-semibold text-foreground">Possible improvements to review</h3>
         </div>
         <ul className="mt-3 space-y-2">
           {(explanation.improvements || []).map((imp, i) => (

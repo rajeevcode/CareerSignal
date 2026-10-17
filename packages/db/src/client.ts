@@ -1,55 +1,52 @@
 import { randomUUID } from 'crypto';
-import path from 'path';
-import fs from 'fs';
-import Database from 'better-sqlite3';
-import { drizzle, BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
+import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
 import * as schema from './schema';
 
-function resolveDefaultDbPath() {
-  // packages/db/dist -> repo root is three levels up
-  return path.resolve(__dirname, '../../../data/careersignal.db');
-}
+let dbInstance: PostgresJsDatabase<typeof schema> | null = null;
 
-export function getDatabasePath(): string {
-  return process.env.DATABASE_PATH
-    ? path.resolve(process.env.DATABASE_PATH)
-    : resolveDefaultDbPath();
-}
-
-let dbInstance: BetterSQLite3Database<typeof schema> | null = null;
-
+/**
+ * Server-only privileged Postgres connection (Supabase local Postgres).
+ * Bypasses RLS — every query must continue to scope by session/candidate id.
+ */
 export function getDb() {
   if (!dbInstance) {
-    const dbPath = getDatabasePath();
-    fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-    const sqlite = new Database(dbPath);
-    sqlite.pragma('journal_mode = WAL');
-    sqlite.pragma('foreign_keys = ON');
-    dbInstance = drizzle(sqlite, { schema });
+    const connectionString = process.env.SUPABASE_DB_URL;
+    if (!connectionString) {
+      throw new Error('SUPABASE_DB_URL is not set');
+    }
+    const sql = postgres(connectionString, { prepare: false });
+    dbInstance = drizzle(sql, { schema });
   }
   return dbInstance;
 }
 
-export function parseJsonArray<T = string>(value: string | null | undefined, fallback: T[] = []): T[] {
-  if (!value) return fallback;
-  try {
-    return JSON.parse(value) as T[];
-  } catch {
-    return fallback;
+// ── JSON / array helpers ────────────────────────────────────────────────────
+// Postgres jsonb/text[] columns come back already parsed, so these are now
+// defensive passthroughs (kept for call-site compatibility).
+export function parseJsonArray<T = string>(value: unknown, fallback: T[] = []): T[] {
+  if (Array.isArray(value)) return value as T[];
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? (parsed as T[]) : fallback;
+    } catch {
+      return fallback;
+    }
   }
+  return fallback;
 }
 
-export function parseJsonObject<T = Record<string, unknown>>(value: string | null | undefined): T | null {
-  if (!value) return null;
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return null;
+export function parseJsonObject<T = Record<string, unknown>>(value: unknown): T | null {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value as T;
+  if (typeof value === 'string') {
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return null;
+    }
   }
-}
-
-export function parseEmbedding(value: string | null | undefined): number[] | null {
-  return parseJsonArray<number>(value, []);
+  return null;
 }
 
 export function toIsoNow() {

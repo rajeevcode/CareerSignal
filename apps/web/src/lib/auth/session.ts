@@ -1,148 +1,190 @@
-import { cookies } from 'next/headers';
-import bcrypt from 'bcryptjs';
-import { eq } from 'drizzle-orm';
-import {
-  getDb,
-  newId,
-  toIsoNow,
-  users,
-  candidateProfiles,
-  mapUser,
-  parseJsonArray,
-} from '@careersignal/db';
-import {
-  createSessionToken,
-  verifySessionToken,
-  SESSION_COOKIE,
-  SESSION_MAX_AGE,
-  type SessionPayload,
-} from './token';
+import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseAdminClient } from '@/lib/supabase/admin';
+import type { SessionPayload } from './token';
 
 export type { SessionPayload };
 
-export async function hashPassword(password: string) {
-  return bcrypt.hash(password, 10);
+/**
+ * Auth adapter over Supabase Auth. Preserves the app's existing helper API
+ * (getSession/getCurrentUser/registerUser/loginUser/…) so routes & pages are
+ * unchanged. Identity lives in auth.users + profiles; plan in subscriptions;
+ * onboarding in candidate_profiles. Reads use the admin client (privileged) to
+ * assemble the session payload regardless of RLS.
+ */
+
+interface PlanRoleOnboarding {
+  role: SessionPayload['role'];
+  plan: 'free' | 'pro';
+  onboardingComplete: boolean;
+  onboardingStep: number;
 }
 
-export async function verifyPassword(password: string, hash: string) {
-  return bcrypt.compare(password, hash);
-}
+async function loadPlanRoleOnboarding(userId: string): Promise<PlanRoleOnboarding> {
+  const admin = createSupabaseAdminClient();
 
-export async function getSessionPayloadForUser(userId: string, email: string, role: SessionPayload['role']): Promise<SessionPayload> {
+  const [{ data: profile }, { data: sub }, { data: candidate }] = await Promise.all([
+    admin.from('profiles').select('role').eq('id', userId).maybeSingle(),
+    admin.from('subscriptions').select('plan').eq('user_id', userId).maybeSingle(),
+    admin
+      .from('candidate_profiles')
+      .select('id, onboarding_complete, onboarding_step, cv_score, target_roles')
+      .eq('user_id', userId)
+      .maybeSingle(),
+  ]);
+
+  const role = (profile?.role ?? 'candidate') as SessionPayload['role'];
+  const plan = (sub?.plan ?? 'free') as 'free' | 'pro';
+
   if (role !== 'candidate') {
-    return { userId, email, role, onboardingComplete: true, onboardingStep: 3 };
+    return { role, plan, onboardingComplete: true, onboardingStep: 3 };
+  }
+  if (!candidate) {
+    return { role, plan, onboardingComplete: false, onboardingStep: 0 };
   }
 
-  const db = getDb();
-  const profile = db.select().from(candidateProfiles).where(eq(candidateProfiles.userId, userId)).get();
-  if (!profile) {
-    return { userId, email, role, onboardingComplete: false, onboardingStep: 0 };
+  let onboardingComplete = candidate.onboarding_complete ?? false;
+  let onboardingStep = candidate.onboarding_step ?? 0;
+
+  // Lazy onboarding completion: CV scored + target roles chosen.
+  if (!onboardingComplete) {
+    const hasCv = candidate.cv_score != null;
+    const hasRoles = Array.isArray(candidate.target_roles) && candidate.target_roles.length > 0;
+    if (hasCv && hasRoles) {
+      await admin
+        .from('candidate_profiles')
+        .update({ onboarding_complete: true, onboarding_step: 3 })
+        .eq('id', candidate.id);
+      onboardingComplete = true;
+      onboardingStep = 3;
+    }
   }
 
-  const { onboardingComplete, onboardingStep } = normalizeOnboardingState(profile);
-  return { userId, email, role, onboardingComplete, onboardingStep };
-}
-
-function normalizeOnboardingState(profile: typeof candidateProfiles.$inferSelect) {
-  if (profile.onboardingComplete) {
-    return { onboardingComplete: true, onboardingStep: profile.onboardingStep ?? 3 };
-  }
-
-  const hasCv = profile.cvScore != null;
-  const hasRoles = parseJsonArray(profile.targetRoles).length > 0;
-  if (hasCv && hasRoles) {
-    const now = toIsoNow();
-    getDb().update(candidateProfiles).set({
-      onboardingComplete: true,
-      onboardingStep: 3,
-      updatedAt: now,
-    }).where(eq(candidateProfiles.id, profile.id)).run();
-    return { onboardingComplete: true, onboardingStep: 3 };
-  }
-
-  return {
-    onboardingComplete: profile.onboardingComplete ?? false,
-    onboardingStep: profile.onboardingStep ?? 0,
-  };
-}
-
-export async function setSessionCookie(payload: SessionPayload) {
-  const token = await createSessionToken(payload);
-  const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: SESSION_MAX_AGE,
-    path: '/',
-  });
-}
-
-export async function clearSessionCookie() {
-  const cookieStore = await cookies();
-  cookieStore.delete(SESSION_COOKIE);
+  return { role, plan, onboardingComplete, onboardingStep };
 }
 
 export async function getSession(): Promise<SessionPayload | null> {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE)?.value;
-  if (!token) return null;
-  return verifySessionToken(token);
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { role, plan, onboardingComplete, onboardingStep } = await loadPlanRoleOnboarding(user.id);
+  return {
+    userId: user.id,
+    email: user.email ?? '',
+    role,
+    plan,
+    onboardingComplete,
+    onboardingStep,
+  };
 }
 
 export async function getCurrentUser() {
-  const session = await getSession();
-  if (!session) return null;
+  const supabase = await createSupabaseServerClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
 
-  const db = getDb();
-  const row = db.select().from(users).where(eq(users.id, session.userId)).get();
-  if (!row) return null;
-  return mapUser(row);
+  const admin = createSupabaseAdminClient();
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('role, full_name, avatar_url, created_at, updated_at')
+    .eq('id', user.id)
+    .maybeSingle();
+  const { data: sub } = await admin.from('subscriptions').select('plan').eq('user_id', user.id).maybeSingle();
+
+  return {
+    id: user.id,
+    email: user.email ?? '',
+    role: (profile?.role ?? 'candidate') as SessionPayload['role'],
+    plan: (sub?.plan ?? 'free') as 'free' | 'pro',
+    full_name: profile?.full_name ?? null,
+    avatar_url: profile?.avatar_url ?? null,
+    created_at: profile?.created_at ?? null,
+    updated_at: profile?.updated_at ?? null,
+  };
 }
 
-export async function registerUser(email: string, password: string, fullName: string) {
-  const db = getDb();
-  const existing = db.select().from(users).where(eq(users.email, email.toLowerCase())).get();
-  if (existing) throw new Error('Email already registered');
-
-  const now = toIsoNow();
-  const userId = newId();
-  const candidateId = newId();
-  const passwordHash = await hashPassword(password);
-
-  db.insert(users).values({
-    id: userId,
-    email: email.toLowerCase(),
-    passwordHash,
-    role: 'candidate',
-    fullName,
-    avatarUrl: null,
-    createdAt: now,
-    updatedAt: now,
-  }).run();
-
-  db.insert(candidateProfiles).values({
-    id: candidateId,
+export async function getSessionPayloadForUser(
+  userId: string,
+  email: string,
+  role?: SessionPayload['role'],
+): Promise<SessionPayload> {
+  const loaded = await loadPlanRoleOnboarding(userId);
+  return {
     userId,
-    salaryCurrency: 'INR',
-    remotePreference: 'any',
-    targetRoles: '[]',
-    onboardingStep: 0,
-    onboardingComplete: false,
-    createdAt: now,
-    updatedAt: now,
-  }).run();
+    email,
+    role: role ?? loaded.role,
+    plan: loaded.plan,
+    onboardingComplete: loaded.onboardingComplete,
+    onboardingStep: loaded.onboardingStep,
+  };
+}
 
-  return getSessionPayloadForUser(userId, email.toLowerCase(), 'candidate');
+/** Supabase owns the session cookie; plan is read live, so this is a no-op kept for API compatibility. */
+export async function refreshSessionPlan(session: SessionPayload) {
+  return getSessionPayloadForUser(session.userId, session.email, session.role);
+}
+
+/** Supabase manages auth cookies via the SSR client; these remain for call-site compatibility. */
+export async function setSessionCookie(payload: SessionPayload) {
+  void payload;
+  /* no-op: Supabase SSR client manages cookies */
+}
+
+export async function clearSessionCookie() {
+  const supabase = await createSupabaseServerClient();
+  await supabase.auth.signOut();
+}
+
+export interface RegisterResult {
+  session: SessionPayload;
+  confirmationRequired: boolean;
+}
+
+export async function registerUser(
+  email: string,
+  password: string,
+  fullName: string,
+): Promise<RegisterResult> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.auth.signUp({
+    email: email.toLowerCase(),
+    password,
+    options: { data: { full_name: fullName } },
+  });
+  if (error) {
+    if (/already registered|already exists|user already/i.test(error.message)) {
+      throw new Error('Email already registered');
+    }
+    throw new Error(error.message);
+  }
+  // With email confirmations enabled, Supabase does NOT error on a duplicate;
+  // it returns a user with an empty `identities` array. Treat that as a dupe.
+  if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+    throw new Error('Email already registered');
+  }
+  // The on_auth_user_created trigger creates profile/candidate/usage/subscription.
+  const userId = data.user?.id;
+  if (!userId) throw new Error('Registration failed');
+  return {
+    session: await getSessionPayloadForUser(userId, email.toLowerCase(), 'candidate'),
+    confirmationRequired: !data.session,
+  };
 }
 
 export async function loginUser(email: string, password: string) {
-  const db = getDb();
-  const row = db.select().from(users).where(eq(users.email, email.toLowerCase())).get();
-  if (!row) throw new Error('Invalid email or password');
-
-  const valid = await verifyPassword(password, row.passwordHash);
-  if (!valid) throw new Error('Invalid email or password');
-
-  return getSessionPayloadForUser(row.id, row.email, row.role);
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: email.toLowerCase(),
+    password,
+  });
+  if (error || !data.user) {
+    // An unconfirmed email is a distinct, recoverable state — telling the user
+    // their password is wrong leaves them with no way forward. Everything else
+    // stays generic so we don't reveal whether an account exists.
+    if (error && /email not confirmed|confirm your email|not confirmed/i.test(error.message)) {
+      throw new Error('Please confirm your email address before signing in. Check your inbox for the confirmation link.');
+    }
+    throw new Error('Invalid email or password');
+  }
+  return getSessionPayloadForUser(data.user.id, data.user.email ?? email.toLowerCase());
 }

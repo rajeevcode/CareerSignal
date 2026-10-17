@@ -1,50 +1,128 @@
+name: careersignal
+
 services:
-  web:
+  migrate:
     build:
       context: .
-      dockerfile: Dockerfile
-      target: runner
-    ports:
-      - "3000:3000"
+      dockerfile: docker/migrations/Dockerfile
     environment:
-      DATABASE_PATH: /app/data/careersignal.db
-      UPLOADS_PATH: /app/data/uploads
-      AI_SERVICE_URL: http://ai:8000
-      AUTH_SECRET: ${AUTH_SECRET:?Set AUTH_SECRET in .env}
-      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
-      RESEND_API_KEY: ${RESEND_API_KEY:-}
-      EMAIL_FROM: ${EMAIL_FROM:-CareerSignal <onboarding@resend.dev>}
-    volumes:
-      - ./data:/app/data
-    depends_on:
-      ai:
-        condition: service_started
-    restart: unless-stopped
+      SUPABASE_DB_URL: ${SUPABASE_DB_URL:?Set SUPABASE_DB_URL in .env}
+    networks:
+      - backend
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
 
   ai:
     build:
       context: ./services/ai
       dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
+      target: runner
     environment:
+      SUPABASE_DB_URL: ${SUPABASE_DB_URL:?Set SUPABASE_DB_URL in .env}
       OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY in .env}
-      DATABASE_PATH: /app/data/careersignal.db
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?Set INTERNAL_API_TOKEN in .env}
       CORS_ORIGINS: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
-    volumes:
-      - ./data:/app/data
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      LLM_DAILY_BUDGET_USD: ${LLM_DAILY_BUDGET_USD:-50}
+      LLM_MONTHLY_BUDGET_USD: ${LLM_MONTHLY_BUDGET_USD:-1000}
+      LLM_PRICE_OVERRIDES: ${LLM_PRICE_OVERRIDES:-}
+      AI_WORKERS: ${AI_WORKERS:-2}
+    expose:
+      - "8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - backend
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
 
-  migrate:
+  web:
     build:
       context: .
       dockerfile: Dockerfile
-      target: dev
+      target: runner
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?Set NEXT_PUBLIC_SUPABASE_URL in .env}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:?Set NEXT_PUBLIC_SUPABASE_ANON_KEY in .env}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+        NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY:-}
+        NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST:-https://app.posthog.com}
     environment:
-      DATABASE_PATH: /app/data/careersignal.db
-    volumes:
-      - .:/app
-      - ./data:/app/data
-    command: sh -c "pnpm install --frozen-lockfile && pnpm --filter @careersignal/shared build && pnpm --filter @careersignal/db build && pnpm db:push && pnpm db:seed"
-    profiles:
-      - setup
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:?Set NEXT_PUBLIC_SUPABASE_URL in .env}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:?Set NEXT_PUBLIC_SUPABASE_ANON_KEY in .env}
+      SUPABASE_URL: ${SUPABASE_URL:-${NEXT_PUBLIC_SUPABASE_URL}}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:?Set SUPABASE_SERVICE_ROLE_KEY in .env}
+      SUPABASE_DB_URL: ${SUPABASE_DB_URL:?Set SUPABASE_DB_URL in .env}
+      AI_SERVICE_URL: http://ai:8000
+      AI_INTERNAL_TOKEN: ${INTERNAL_API_TOKEN:?Set INTERNAL_API_TOKEN in .env}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY:-}
+      NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST:-https://app.posthog.com}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-CareerSignal <onboarding@resend.dev>}
+      ALLOW_MOCK_CHECKOUT: "false"
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      CAREER_TOKEN_ENCRYPTION_KEY: ${CAREER_TOKEN_ENCRYPTION_KEY:-}
+    ports:
+      - "${BIND_ADDRESS:-0.0.0.0}:${WEB_PORT:-3000}:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      ai:
+        condition: service_healthy
+    networks:
+      - frontend
+      - backend
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+      - /app/apps/web/.next/cache:rw,noexec,nosuid,size=128m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  career-maintenance:
+    build:
+      context: ./services/ai
+      dockerfile: Dockerfile
+      target: runner
+    command: ["python", "-m", "app.maintenance"]
+    environment:
+      SUPABASE_DB_URL: ${SUPABASE_DB_URL:?Set SUPABASE_DB_URL in .env}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks:
+      - backend
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,time; assert time.time()-os.stat('/tmp/career-maintenance-heartbeat').st_mtime < 180"]
+      interval: 60s
+      timeout: 5s
+      start_period: 90s
+      retries: 3
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge

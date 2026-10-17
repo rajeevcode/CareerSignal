@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: careersignal-maintenance
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: careersignal-maintenance }
+  template:
+    metadata:
+      labels: { app: careersignal-maintenance }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      containers:
+        - name: maintenance
+          image: careersignal-ai:latest # Replace with your built, immutable release image.
+          command: [python, -m, app.maintenance]
+          env:
+            - name: SUPABASE_DB_URL
+              valueFrom:
+                secretKeyRef:
+                  { name: careersignal-server, key: SUPABASE_DB_URL }
+          resources:
+            requests: { cpu: 50m, memory: 96Mi }
+            limits: { cpu: 250m, memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: temporary, mountPath: /tmp }
+          livenessProbe:
+            exec:
+              command:
+                [
+                  python,
+                  -c,
+                  "import os,time; assert time.time()-os.stat('/tmp/career-maintenance-heartbeat').st_mtime < 180",
+                ]
+            initialDelaySeconds: 90
+            periodSeconds: 60
+      volumes:
+        - name: temporary
+          emptyDir: { medium: Memory, sizeLimit: 16Mi }

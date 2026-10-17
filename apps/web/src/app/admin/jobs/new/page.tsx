@@ -8,5 +8,5 @@ export default async function NewJobPage() {
   if (!session) redirect('/login');
   if (session.role !== 'admin') redirect('/dashboard');
 
-  return <NewJobForm companies={listCompanies()} />;
+  return <NewJobForm companies={await listCompanies()} />;
 }

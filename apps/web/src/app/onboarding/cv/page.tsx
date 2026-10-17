@@ -7,12 +7,12 @@ export default async function OnboardingCVPage() {
   const session = await getSession();
   if (!session) redirect('/login');
 
-  const candidate = getCandidateRowByUserId(session.userId);
+  const candidate = await getCandidateRowByUserId(session.userId);
   if (!candidate) redirect('/register');
 
   if (candidate.onboardingComplete) redirect('/dashboard');
 
-  const cvs = listCvUploads(candidate.id);
+  const cvs = await listCvUploads(candidate.id);
   if (cvs.length > 0 && (candidate.onboardingStep ?? 0) >= 1) {
     redirect('/onboarding/profile');
   }

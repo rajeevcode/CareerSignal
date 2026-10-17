@@ -4,79 +4,139 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 import { trackEvent } from '@/lib/analytics';
+import { AuthLayout } from '@/components/auth/AuthLayout';
+import { SocialAuthButtons } from '@/components/auth/SocialAuthButtons';
+import { AuthDivider } from '@/components/auth/AuthDivider';
+import { InlineFormError } from '@/components/auth/InlineFormError';
+import { FREE_LIMITS } from '@/lib/billing';
+import { safeRedirectPath } from '@/lib/utils';
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+type FieldErrors = Partial<Record<'email' | 'password', string>>;
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get('redirect') || '/dashboard';
+  // Sanitize before use: this value flows into router.push() and into the OAuth
+  // redirect, so an attacker-supplied //evil.com / https://evil.com must not
+  // escape the origin.
+  const redirect = safeRedirectPath(searchParams.get('redirect'));
+  const resetSucceeded = searchParams.get('reset') === 'success';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  function validate(): FieldErrors {
+    const e: FieldErrors = {};
+    if (!email.trim()) e.email = 'Email is required.';
+    else if (!EMAIL_RE.test(email)) e.email = 'Please enter a valid email address.';
+    if (!password) e.password = 'Password is required.';
+    return e;
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
     setError(null);
+    const errs = validate();
+    setFieldErrors(errs);
+    if (Object.keys(errs).length > 0) return;
 
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
+    try {
+      setLoading(true);
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
 
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error || 'Login failed');
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || 'Login failed');
+        return;
+      }
+
+      trackEvent('login', { method: 'email' });
+      router.push(redirect);
+      router.refresh();
+    } catch {
+      setError('Could not sign in. Check your connection and try again.');
+    } finally {
       setLoading(false);
-      return;
     }
-
-    trackEvent('login', { method: 'email' });
-    router.push(redirect);
-    router.refresh();
   }
 
   return (
-    <div className="mx-auto max-w-md px-4 py-16">
-      <h1 className="text-2xl font-bold text-slate-900">Welcome back</h1>
-      <p className="mt-2 text-sm text-slate-600">Sign in to CareerSignal</p>
+    <AuthLayout>
+      <h1 className="text-2xl font-bold text-foreground">Welcome back</h1>
+      <p className="mt-1 text-sm text-muted-foreground">Continue improving your job search signal.</p>
 
-      <form onSubmit={handleSubmit} className="mt-8 space-y-4">
-        {error && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      <div className="mt-6">
+        <SocialAuthButtons redirect={redirect} />
+      </div>
+      <AuthDivider />
+
+      <form onSubmit={handleSubmit} noValidate className="space-y-4">
+        {resetSucceeded && (
+          <p role="status" className="rounded-lg bg-success-soft p-3 text-sm text-success">
+            Your password was updated. Sign in with your new password.
+          </p>
+        )}
+        {error && <p role="alert" className="rounded-lg bg-risk-soft p-3 text-sm text-risk">{error}</p>}
         <div>
-          <label className="text-sm font-medium text-slate-700">Email</label>
+          <label htmlFor="login-email" className="text-sm font-medium text-foreground">Email</label>
           <input
+            id="login-email"
             type="email"
-            required
+            autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+            aria-describedby="login-email-err"
+            aria-invalid={fieldErrors.email ? 'true' : undefined}
+            className="mt-1 w-full rounded-lg border border-border px-3 py-2"
           />
+          <InlineFormError id="login-email-err" message={fieldErrors.email} />
         </div>
         <div>
-          <label className="text-sm font-medium text-slate-700">Password</label>
+          <div className="flex items-center justify-between gap-3">
+            <label htmlFor="login-password" className="text-sm font-medium text-foreground">Password</label>
+            <Link href="/forgot-password" className="text-xs font-semibold text-primary hover:underline">
+              Forgot password?
+            </Link>
+          </div>
           <input
+            id="login-password"
             type="password"
-            required
+            autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2"
+            aria-describedby="login-password-err"
+            aria-invalid={fieldErrors.password ? 'true' : undefined}
+            className="mt-1 w-full rounded-lg border border-border px-3 py-2"
           />
+          <InlineFormError id="login-password-err" message={fieldErrors.password} />
         </div>
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-lg bg-indigo-600 py-2.5 font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+          className="w-full rounded-lg bg-primary py-2.5 font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
         >
-          {loading ? 'Signing in...' : 'Sign in'}
+          {loading ? 'Signing in...' : 'Login'}
         </button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-slate-600">
-        No account? <Link href="/register" className="text-indigo-600 hover:underline">Sign up</Link>
+      <p className="mt-5 text-center text-xs text-muted-foreground">
+        Free account includes {FREE_LIMITS.cvUploads} CV uploads and {FREE_LIMITS.jdMatchesMonthly} JD matches per month.
       </p>
-    </div>
+      <p className="mt-3 text-center text-sm text-muted-foreground">
+        New to CareerSignal?{' '}
+        <Link href={`/register?redirect=${encodeURIComponent(redirect)}`} className="text-primary hover:underline">
+          Create free account
+        </Link>
+      </p>
+    </AuthLayout>
   );
 }
 

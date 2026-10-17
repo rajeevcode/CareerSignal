@@ -1,18 +1,18 @@
-import path from 'path';
-import fs from 'fs';
 import { defineConfig } from 'drizzle-kit';
 
-const dbPath = process.env.DATABASE_PATH
-  ? path.resolve(process.env.DATABASE_PATH)
-  : path.resolve(__dirname, '../../data/careersignal.db');
+const url = process.env.SUPABASE_DB_URL;
 
-fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+if (!url) {
+  throw new Error('SUPABASE_DB_URL is required for Drizzle commands');
+}
 
 export default defineConfig({
   schema: './src/schema.ts',
   out: './drizzle',
-  dialect: 'sqlite',
+  dialect: 'postgresql',
   dbCredentials: {
-    url: dbPath,
+    url,
   },
+  strict: true,
+  verbose: true,
 });

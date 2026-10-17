@@ -36,18 +36,18 @@ export function AdminJobsClient({ jobs, companies }: Props) {
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900">Admin — Jobs</h1>
-        <Link href="/admin/jobs/new" className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700">
+        <h1 className="text-2xl font-bold text-foreground">Admin — Jobs</h1>
+        <Link href="/admin/jobs/new" className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary-hover">
           Post new job
         </Link>
       </div>
 
-      <p className="mt-2 text-sm text-slate-600">{companies.length} companies • {jobs.length} jobs</p>
+      <p className="mt-2 text-sm text-muted-foreground">{companies.length} companies • {jobs.length} jobs</p>
 
       <div className="mt-8 overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead>
-            <tr className="border-b border-slate-200 text-slate-600">
+            <tr className="border-b border-border text-muted-foreground">
               <th className="pb-3 pr-4">Title</th>
               <th className="pb-3 pr-4">Company</th>
               <th className="pb-3 pr-4">Status</th>
@@ -57,23 +57,23 @@ export function AdminJobsClient({ jobs, companies }: Props) {
           </thead>
           <tbody>
             {jobs.map((job) => (
-              <tr key={job.id} className="border-b border-slate-100">
+              <tr key={job.id} className="border-b border-border">
                 <td className="py-3 pr-4 font-medium">{job.title}</td>
                 <td className="py-3 pr-4">{job.company?.name}</td>
                 <td className="py-3 pr-4">
-                  <span className={`rounded-full px-2 py-0.5 text-xs ${job.status === 'published' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+                  <span className={`rounded-full px-2 py-0.5 text-xs ${job.status === 'published' ? 'bg-success-soft text-success' : 'bg-muted text-muted-foreground'}`}>
                     {job.status}
                   </span>
                 </td>
-                <td className="py-3 pr-4 text-slate-500">{formatDate(job.posted_at)}</td>
+                <td className="py-3 pr-4 text-muted-foreground">{formatDate(job.posted_at)}</td>
                 <td className="py-3 flex gap-2">
-                  <button onClick={() => toggleStatus(job)} className="text-xs text-indigo-600 hover:underline">
+                  <button onClick={() => toggleStatus(job)} className="text-xs text-primary hover:underline">
                     {job.status === 'published' ? 'Unpublish' : 'Publish'}
                   </button>
                   <button
                     onClick={() => deleteJob(job.id)}
                     disabled={deleting === job.id}
-                    className="text-xs text-red-600 hover:underline disabled:opacity-50"
+                    className="text-xs text-destructive hover:underline disabled:opacity-50"
                   >
                     Delete
                   </button>

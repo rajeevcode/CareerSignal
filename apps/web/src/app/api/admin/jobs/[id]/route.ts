@@ -20,10 +20,21 @@ export async function PATCH(
   const body = await request.json();
   const db = getDb();
 
-  db.update(jobs).set({
-    ...(body.status ? { status: body.status } : {}),
+  // Whitelist status against the job-status enum so a typo can't write an
+  // invalid value the rest of the app never expects.
+  const JOB_STATUSES = ['draft', 'published', 'closed'] as const;
+  const status =
+    typeof body.status === 'string' && (JOB_STATUSES as readonly string[]).includes(body.status)
+      ? (body.status as (typeof JOB_STATUSES)[number])
+      : undefined;
+  if (body.status !== undefined && status === undefined) {
+    return NextResponse.json({ error: 'Invalid status' }, { status: 400 });
+  }
+
+  await db.update(jobs).set({
+    ...(status ? { status } : {}),
     updatedAt: new Date().toISOString(),
-  }).where(eq(jobs.id, id)).run();
+  }).where(eq(jobs.id, id));
 
   return NextResponse.json({ success: true });
 }
@@ -35,6 +46,6 @@ export async function DELETE(
   const auth = await requireAdmin();
   if ('error' in auth && auth.error) return auth.error;
   const { id } = await params;
-  getDb().delete(jobs).where(eq(jobs.id, id)).run();
+  await getDb().delete(jobs).where(eq(jobs.id, id));
   return NextResponse.json({ success: true });
 }

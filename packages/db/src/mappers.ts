@@ -2,7 +2,6 @@ import type { Company, Job, CandidateProfile, MatchScore, Application } from '@c
 import {
   parseJsonArray,
   parseJsonObject,
-  parseEmbedding,
 } from './client';
 import type {
   companies,
@@ -10,14 +9,18 @@ import type {
   candidateProfiles,
   matchScores,
   applications,
-  users,
+  coverLetters,
+  interviewSessions,
+  interviewMessages,
 } from './schema';
 
 type DbCompany = typeof companies.$inferSelect;
 type DbJob = typeof jobs.$inferSelect;
 type DbCandidate = typeof candidateProfiles.$inferSelect;
 type DbMatch = typeof matchScores.$inferSelect;
-type DbUser = typeof users.$inferSelect;
+type DbCoverLetter = typeof coverLetters.$inferSelect;
+type DbInterviewSession = typeof interviewSessions.$inferSelect;
+type DbInterviewMessage = typeof interviewMessages.$inferSelect;
 
 export function mapCompany(row: DbCompany): Company {
   return {
@@ -119,13 +122,17 @@ export function mapMatchScore(row: DbMatch, job?: Job): MatchScore {
   };
 }
 
-export function mapApplication(row: typeof applications.$inferSelect, job?: Job): Application {
+export function mapApplication(
+  row: typeof applications.$inferSelect, job?: Job, options?: { includePrivateNotes?: boolean },
+): Application {
   return {
     id: row.id,
     candidate_id: row.candidateId,
     job_id: row.jobId,
     status: row.status,
     cv_version_id: row.cvVersionId,
+    // Recruiter-facing mappings must never include candidate notes or reminders.
+    ...(options?.includePrivateNotes ? { follow_up_due_at: row.followUpDueAt, next_action: row.nextAction } : {}),
     match_score: row.matchScore,
     interview_probability: row.interviewProbability,
     applied_at: row.appliedAt,
@@ -147,7 +154,7 @@ export function mapCandidateForAi(row: DbCandidate, skills: string[]) {
     profile_summary: row.profileSummary,
     visa_status: row.visaStatus,
     cv_score: row.cvScore,
-    embedding: parseEmbedding(row.embedding),
+    embedding: null,
     skills,
   };
 }
@@ -169,18 +176,51 @@ export function mapJobForAi(row: DbJob) {
     tech_stack: parseJsonArray(row.techStack),
     applicant_count: row.applicantCount,
     posted_at: row.postedAt,
-    embedding: parseEmbedding(row.embedding),
+    embedding: null,
   };
 }
 
-export function mapUser(row: DbUser) {
+export function mapCoverLetter(row: DbCoverLetter) {
   return {
     id: row.id,
-    email: row.email,
-    role: row.role,
-    full_name: row.fullName,
-    avatar_url: row.avatarUrl,
+    candidate_id: row.candidateId,
+    job_id: row.jobId,
+    application_id: row.applicationId,
+    cv_version_id: row.cvVersionId,
+    content: row.content,
+    tone: row.tone,
     created_at: row.createdAt,
     updated_at: row.updatedAt,
   };
 }
+
+export function mapInterviewSession(row: DbInterviewSession) {
+  return {
+    id: row.id,
+    candidate_id: row.candidateId,
+    role_title: row.roleTitle,
+    company_name: row.companyName,
+    mode: row.mode,
+    difficulty: row.difficulty,
+    overall_score: row.overallScore,
+    summary: row.summary,
+    job_id: row.jobId,
+    application_id: row.applicationId,
+    created_at: row.createdAt,
+    updated_at: row.updatedAt,
+  };
+}
+
+export function mapInterviewMessage(row: DbInterviewMessage) {
+  return {
+    id: row.id,
+    session_id: row.sessionId,
+    turn_index: row.turnIndex,
+    question: row.question,
+    answer: row.answer,
+    feedback: parseJsonObject(row.feedbackJson),
+    score: row.score,
+    created_at: row.createdAt,
+  };
+}
+

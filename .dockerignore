@@ -5,10 +5,9 @@ node_modules
 .git
 data
 *.db
-.env
-.env.*
-!.env.example
-!apps/web/.env.example
+**/.env
+**/.env.*
+!**/.env.example
 __pycache__
 **/__pycache__
 *.pyc
@@ -16,5 +15,10 @@ __pycache__
 dist
 **/dist
 .cursor
+.vscode
+tmp
+Website layout iteration*
+**/test-results
+**/playwright-report
 *.md
 !README.md

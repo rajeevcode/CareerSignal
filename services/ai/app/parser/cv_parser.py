@@ -1,3 +1,4 @@
+import io
 import json
 import re
 from typing import Any
@@ -8,7 +9,8 @@ from pydantic import BaseModel, Field
 from app.config import settings
 from app.matching.engine import generate_embedding
 from app.matching.skill_graph import extract_skills_from_text, normalize_skills
-from app.openai_client import get_openai, resolve_model
+from app.budget import BudgetExceeded
+from app.openai_client import chat_completion
 
 
 class ParsedExperience(BaseModel):
@@ -46,6 +48,13 @@ class ParsedCV(BaseModel):
     weak_sections: list[str] = Field(default_factory=list)
 
 
+ALLOWED_CV_EXTENSIONS = (".pdf", ".docx")
+
+
+class UnsupportedFileType(ValueError):
+    """Raised when an uploaded CV is not a PDF or DOCX file."""
+
+
 def extract_text_from_pdf(content: bytes) -> str:
     doc = fitz.open(stream=content, filetype="pdf")
     text_parts = []
@@ -53,6 +62,19 @@ def extract_text_from_pdf(content: bytes) -> str:
         text_parts.append(page.get_text())
     doc.close()
     return "\n".join(text_parts).strip()
+
+
+def extract_text_from_docx(content: bytes) -> str:
+    from docx import Document
+
+    doc = Document(io.BytesIO(content))
+    parts = [p.text for p in doc.paragraphs if p.text and p.text.strip()]
+    for table in doc.tables:
+        for row in table.rows:
+            cells = [cell.text.strip() for cell in row.cells if cell.text and cell.text.strip()]
+            if cells:
+                parts.append(" | ".join(cells))
+    return "\n".join(parts).strip()
 
 
 def compute_ats_score(text: str, parsed: ParsedCV) -> float:
@@ -84,7 +106,6 @@ async def parse_cv_with_llm(text: str) -> ParsedCV:
     if not settings.openai_api_key:
         return _heuristic_parse(text)
 
-    client = get_openai()
     prompt = f"""Extract structured CV data from this resume text. Return JSON matching this schema:
 {{
   "name", "email", "phone", "location", "current_title", "total_experience_years",
@@ -98,19 +119,21 @@ Resume:
 {text[:12000]}"""
 
     try:
-        response = client.chat.completions.create(
-            model=resolve_model(settings.llm_model),
+        response = chat_completion(
             messages=[
                 {"role": "system", "content": "Extract CV data accurately. Return valid JSON only."},
                 {"role": "user", "content": prompt},
             ],
             response_format={"type": "json_object"},
             temperature=0.1,
+            feature="parse_cv",
         )
         data = json.loads(response.choices[0].message.content or "{}")
         parsed = ParsedCV.model_validate(data)
         parsed.skills = normalize_skills(parsed.skills + extract_skills_from_text(text))
         return parsed
+    except BudgetExceeded:
+        raise
     except Exception:
         return _heuristic_parse(text)
 
@@ -131,10 +154,13 @@ def _heuristic_parse(text: str) -> ParsedCV:
 
 
 async def parse_cv(content: bytes, filename: str) -> dict[str, Any]:
-    if filename.lower().endswith(".pdf"):
+    name = (filename or "").lower()
+    if name.endswith(".pdf"):
         text = extract_text_from_pdf(content)
+    elif name.endswith(".docx"):
+        text = extract_text_from_docx(content)
     else:
-        text = content.decode("utf-8", errors="ignore")
+        raise UnsupportedFileType("Only PDF and DOCX files are supported.")
 
     parsed = await parse_cv_with_llm(text)
     ats_score = compute_ats_score(text, parsed)

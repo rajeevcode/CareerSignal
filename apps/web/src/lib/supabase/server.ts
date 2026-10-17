@@ -1,0 +1,34 @@
+import { cookies } from 'next/headers';
+import { createServerClient } from '@supabase/ssr';
+import type { Database } from './database.types';
+
+/**
+ * Supabase client bound to the request's cookies (App Router, Next 16 async cookies).
+ * Use in Server Components, Route Handlers, and Server Actions for the AUTHENTICATED user.
+ */
+export async function createSupabaseServerClient() {
+  const cookieStore = await cookies();
+  // Server-side calls may need a different host than the browser (e.g. inside a
+  // container reaching a host-running Supabase via host.docker.internal). Prefer
+  // the server-only SUPABASE_URL when set; fall back to the public URL.
+  const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  return createServerClient<Database>(
+    url,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
+          } catch {
+            // Called from a Server Component (read-only cookies) — safe to ignore;
+            // middleware refreshes the session cookie.
+          }
+        },
+      },
+    },
+  );
+}

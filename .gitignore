@@ -21,3 +21,6 @@ htmlcov
 *.log
 supabase/.branches
 supabase/.temp
+
+# Automated local verification reports
+/tmp/codex-careersignal-checks/

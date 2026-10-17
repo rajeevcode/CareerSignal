@@ -1,13 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 import { getCandidateRowByUserId } from '@/lib/queries';
-import { getAiServiceUrl } from '@/lib/utils';
+import { aiFetch } from '@/lib/utils';
 
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const candidate = getCandidateRowByUserId(session.userId);
+  const candidate = await getCandidateRowByUserId(session.userId);
   if (!candidate) return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
 
   const body = await request.json();
@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const res = await fetch(`${getAiServiceUrl()}/score/cv`, {
+    const res = await aiFetch(`/score/cv`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ candidate_id: candidate.id }),

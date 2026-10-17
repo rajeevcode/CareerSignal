@@ -1,0 +1,2 @@
+ALTER TABLE public.cv_versions ADD COLUMN IF NOT EXISTS note TEXT;
+ALTER TABLE public.cv_versions ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'upload';

@@ -1,0 +1,13 @@
+# CareerSignal
+
+> AI career operating system: build an ATS-ready CV, match it against any job description, see your shortlisting signal, and manage your job search end to end.
+
+## Pages
+
+- [Home](/): Product overview and primary call to action.
+- [Product](/product): Detailed look at all eight CareerSignal modules.
+- [CV Score](/cv-score): How CareerSignal scores and explains CVs.
+- [JD Match](/jd-match): Match a CV against any job description with AI.
+- [Jobs](/jobs): Public preview of the intelligent job feed.
+- [For Recruiters](/for-recruiters): AI-powered shortlisting and JD quality tools.
+- [Pricing](/pricing): Plans for candidates, recruiters, and career centers.

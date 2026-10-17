@@ -12,7 +12,7 @@ import {
 import { JobDetailClient } from './JobDetailClient';
 
 async function fetchOrComputeMatch(candidateId: string, jobId: string) {
-  const existing = getMatchScore(candidateId, jobId);
+  const existing = await getMatchScore(candidateId, jobId);
   if (existing) {
     const hoursSince = (Date.now() - new Date(existing.computed_at).getTime()) / (1000 * 60 * 60);
     if (hoursSince < 24) return existing;
@@ -24,7 +24,7 @@ async function fetchOrComputeMatch(candidateId: string, jobId: string) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ candidate_id: candidateId, job_id: jobId }),
     });
-    return getMatchScore(candidateId, jobId);
+    return await getMatchScore(candidateId, jobId);
   } catch {
     return existing;
   }
@@ -32,7 +32,7 @@ async function fetchOrComputeMatch(candidateId: string, jobId: string) {
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
-  const job = getJobById(id);
+  const job = await getJobById(id);
   if (!job) return { title: 'Job not found' };
   return {
     title: `${job.title} at ${job.company?.name || 'Company'}`,
@@ -42,7 +42,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const job = getJobById(id);
+  const job = await getJobById(id);
   if (!job) notFound();
 
   const session = await getSession();
@@ -52,12 +52,12 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
   let applied = false;
 
   if (session) {
-    const candidate = getCandidateRowByUserId(session.userId);
+    const candidate = await getCandidateRowByUserId(session.userId);
     if (candidate) {
       candidateId = candidate.id;
       matchScore = await fetchOrComputeMatch(candidate.id, id);
-      saved = isJobSaved(candidate.id, id);
-      applied = hasApplied(candidate.id, id);
+      saved = await isJobSaved(candidate.id, id);
+      applied = await hasApplied(candidate.id, id);
     }
   }
 

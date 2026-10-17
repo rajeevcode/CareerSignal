@@ -1,17 +1,23 @@
-import { getAiServiceUrl } from '@/lib/utils';
+import { aiFetch } from '@/lib/utils';
 import { listMatchScoresForCandidate } from '@/lib/queries';
 
-export async function ensureBatchMatch(candidateId: string, limit = 50): Promise<void> {
-  const existing = listMatchScoresForCandidate(candidateId);
-  if (existing.length > 0) return;
+export type BatchMatchState = 'ready' | 'unavailable';
+
+export async function ensureBatchMatch(candidateId: string, limit = 50): Promise<BatchMatchState> {
+  const existing = await listMatchScoresForCandidate(candidateId);
+  if (existing.length > 0) return 'ready';
 
   try {
-    await fetch(`${getAiServiceUrl()}/match/batch`, {
+    const response = await aiFetch('/match/batch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ candidate_id: candidateId, limit }),
+      signal: AbortSignal.timeout(30_000),
     });
+    if (response.ok) return 'ready';
+    console.warn(`[batch-match] AI service returned ${response.status}`);
   } catch {
-    // AI service may be offline; pages handle empty matches gracefully
+    console.warn('[batch-match] AI service unavailable or timed out');
   }
+  return 'unavailable';
 }

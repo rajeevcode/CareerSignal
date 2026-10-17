@@ -1,4 +1,46 @@
+# CareerSignal — dev Docker stack (Supabase-backed).
+# Reads secrets from the root .env (gitignored). Postgres/Auth/Storage are
+# provided by Supabase (hosted or `supabase start`).
+#
+#   docker compose up --build
+#
+# Web → http://localhost:3000   AI → http://localhost:8011
 services:
+  migrate:
+    profiles: ["setup"]
+    build:
+      context: .
+      dockerfile: docker/migrations/Dockerfile
+    environment:
+      SUPABASE_DB_URL: ${SUPABASE_DB_URL}
+    restart: "no"
+
+  ai:
+    build:
+      context: ./services/ai
+      dockerfile: Dockerfile
+    # Bind the published port to loopback only — the web container reaches the
+    # AI service over the compose network (http://ai:8000), so the host mapping
+    # is just for local debugging and must not be exposed on all interfaces.
+    ports:
+      - "127.0.0.1:${AI_PORT:-8011}:8000"
+    environment:
+      SUPABASE_DB_URL: ${SUPABASE_DB_URL}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      CORS_ORIGINS: http://localhost:${WEB_PORT:-3000}
+      # Shared secret the web service must present (see .env.example). Optional
+      # in pure-local dev; set it whenever the service is otherwise reachable.
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
   web:
     build:
       context: .
@@ -7,62 +49,55 @@ services:
     ports:
       - "${WEB_PORT:-3000}:3000"
     environment:
-      DATABASE_PATH: /app/data/careersignal.db
-      UPLOADS_PATH: /app/data/uploads
+      # Supabase (server + public). Provide these in the root .env.
+      NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      SUPABASE_URL: ${SUPABASE_URL:-${NEXT_PUBLIC_SUPABASE_URL}}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      SUPABASE_DB_URL: ${SUPABASE_DB_URL}
+      # Talk to the AI container over the compose network.
       AI_SERVICE_URL: http://ai:8000
-      AUTH_SECRET: ${AUTH_SECRET:-dev-secret-change-in-production}
+      # Must match the AI service's INTERNAL_API_TOKEN.
+      AI_INTERNAL_TOKEN: ${INTERNAL_API_TOKEN:-}
       NEXT_PUBLIC_APP_URL: http://localhost:${WEB_PORT:-3000}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      RESEND_API_KEY: ${RESEND_API_KEY:-}
-      EMAIL_FROM: ${EMAIL_FROM:-CareerSignal <onboarding@resend.dev>}
-    volumes:
-      - .:/app
-      - web_node_modules:/app/node_modules
-      - web_app_node_modules:/app/apps/web/node_modules
-      - web_db_node_modules:/app/packages/db/node_modules
-      - web_shared_node_modules:/app/packages/shared/node_modules
-      - ./data:/app/data
+      # Local-only checkout simulator. Production Compose pins this to "false".
+      ALLOW_MOCK_CHECKOUT: ${ALLOW_MOCK_CHECKOUT:-true}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+      CAREER_TOKEN_ENCRYPTION_KEY: ${CAREER_TOKEN_ENCRYPTION_KEY:-}
+      NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY:-}
+      NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST:-https://app.posthog.com}
+    # No bind mount: use the image's installed node_modules + copied source as-built.
+    # (Avoids empty named volumes shadowing workspace deps like `postgres`.)
+    # The dev target's CMD builds shared/db then runs the Next dev server.
     depends_on:
       ai:
         condition: service_started
 
-  ai:
+  career-maintenance:
     build:
       context: ./services/ai
       dockerfile: Dockerfile
-    ports:
-      - "${AI_PORT:-8000}:8000"
+      target: runner
+    command: ["python", "-m", "app.maintenance"]
     environment:
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
-      DATABASE_PATH: /app/data/careersignal.db
-      CORS_ORIGINS: http://localhost:${WEB_PORT:-3000}
-      LLM_MODEL: ${LLM_MODEL:-}
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-}
-    volumes:
-      - ./services/ai:/app
-      - ./data:/app/data
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-
-  migrate:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      target: dev
-    environment:
-      DATABASE_PATH: /app/data/careersignal.db
-    volumes:
-      - .:/app
-      - web_node_modules:/app/node_modules
-      - web_db_node_modules:/app/packages/db/node_modules
-      - web_shared_node_modules:/app/packages/shared/node_modules
-      - ./data:/app/data
-    command: sh -c "pnpm --filter @careersignal/shared build && pnpm --filter @careersignal/db build && pnpm db:push && pnpm db:seed"
-    profiles:
-      - setup
-
-volumes:
-  web_node_modules:
-  web_app_node_modules:
-  web_db_node_modules:
-  web_shared_node_modules:
+      SUPABASE_DB_URL: ${SUPABASE_DB_URL}
+    depends_on:
+      ai:
+        condition: service_started
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,time; assert time.time()-os.stat('/tmp/career-maintenance-heartbeat').st_mtime < 180"]
+      interval: 60s
+      timeout: 5s
+      start_period: 90s
+      retries: 3
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true

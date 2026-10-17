@@ -3,7 +3,21 @@ export type UserRole = 'candidate' | 'recruiter' | 'admin';
 export type RemoteType = 'remote' | 'hybrid' | 'onsite';
 export type EmploymentType = 'full_time' | 'contract' | 'internship' | 'part_time';
 export type JobStatus = 'draft' | 'published' | 'closed';
-export type ApplicationStatus = 'applied' | 'viewed' | 'shortlisted' | 'rejected' | 'interview' | 'offer' | 'ghosted';
+export type ApplicationStatus =
+  | 'saved'
+  | 'applied'
+  | 'viewed'
+  | 'recruiter_viewed'
+  | 'shortlisted'
+  | 'hr_screen'
+  | 'technical_round'
+  | 'case_study'
+  | 'final_round'
+  | 'interview'
+  | 'offer'
+  | 'rejected'
+  | 'ghosted'
+  | 'follow_up_needed';
 export type RemotePreference = 'remote' | 'hybrid' | 'onsite' | 'any';
 export type SkillSource = 'cv' | 'manual' | 'linkedin';
 export type SkillLevel = 'beginner' | 'intermediate' | 'advanced' | 'expert';
@@ -160,6 +174,8 @@ export interface Application {
   job_id: string;
   status: ApplicationStatus;
   cv_version_id: string | null;
+  follow_up_due_at?: string | null;
+  next_action?: string | null;
   match_score: number | null;
   interview_probability: number | null;
   applied_at: string;
@@ -191,6 +207,56 @@ export interface MatchExplanation {
   category?: 'best_match' | 'stretch' | 'visa_friendly' | 'low_competition';
 }
 
+export type RoleStyle =
+  | 'ai_product_manager'
+  | 'technical_product_manager'
+  | 'data_product_manager'
+  | 'product_owner'
+  | 'growth_product_manager'
+  | 'program_manager';
+
+export const ROLE_STYLES: { value: RoleStyle; label: string }[] = [
+  { value: 'ai_product_manager', label: 'AI Product Manager' },
+  { value: 'technical_product_manager', label: 'Technical Product Manager' },
+  { value: 'data_product_manager', label: 'Data Product Manager' },
+  { value: 'product_owner', label: 'Product Owner' },
+  { value: 'growth_product_manager', label: 'Growth Product Manager' },
+  { value: 'program_manager', label: 'Program Manager' },
+];
+
+export type RewriteMode = 'regenerate' | 'senior' | 'concise';
+
+export interface ScoreImpact {
+  jd_match: number;
+  ats: number;
+  recruiter_scan: number;
+}
+
+export interface BulletRewrite {
+  id: string;
+  before: string;
+  issue: string;
+  after: string;
+  keywords_added: string[];
+  score_impact: ScoreImpact;
+  is_placeholder: boolean;
+}
+
+export interface BulletRewriteResult {
+  after: string;
+  issue: string;
+  keywords_added: string[];
+  score_impact: ScoreImpact;
+  is_placeholder: boolean;
+}
+
+// Matches any [bracketed placeholder] token, e.g. "[X% increase]".
+export const PLACEHOLDER_REGEX = /\[[^\]]+\]/g;
+
+export function hasPlaceholder(text: string): boolean {
+  return /\[[^\]]+\]/.test(text);
+}
+
 export interface CvGapAnalysis {
   missing_keywords: string[];
   weak_bullets: string[];
@@ -198,10 +264,15 @@ export interface CvGapAnalysis {
   suggested_summary: string;
   suggested_bullets: string[];
   current_fit: number;
-  projected_fit: number;
-  ats_match_score: number;
-  recruiter_readability_score: number;
+  projected_fit: number | null;
+  ats_match_score: number | null;
+  recruiter_readability_score: number | null;
+  generation_mode?: 'provider' | 'unavailable';
   risk_notes: string[];
+  // New (optional for back-compat with persisted explanation rows).
+  bullet_rewrites?: BulletRewrite[];
+  role_style?: RoleStyle;
+  truthfulness_warning?: string;
 }
 
 export interface MatchScore extends MatchScoreBreakdown {

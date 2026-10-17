@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CareerSignal — CV Score Preview Card</title>
+  <style>
+    /* ───────────────────────────── Tokens ───────────────────────────── */
+    :root {
+      --navy-1: #232a6c;       /* card top-left */
+      --navy-2: #2b3486;       /* card mid */
+      --indigo-glow: #5b63d6;  /* ambient highlight */
+      --panel-bg: rgba(255, 255, 255, 0.06);
+      --panel-border: rgba(255, 255, 255, 0.12);
+      --track: rgba(255, 255, 255, 0.16);
+      --text: #ffffff;
+      --text-muted: #b9c0ee;
+      --amber: #e8a73a;        /* "before" bar */
+      --green: #2faf5b;        /* "after" bar + improved score */
+      --radius-card: 28px;
+      --radius-panel: 20px;
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 48px 24px;
+      background: #f4f7fb;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    }
+
+    /* ───────────────────────────── Card ───────────────────────────── */
+    .cv-card {
+      position: relative;
+      width: min(640px, 100%);
+      min-height: 560px;
+      padding: 40px;
+      border-radius: var(--radius-card);
+      overflow: hidden;
+      color: var(--text);
+      background: linear-gradient(150deg, var(--navy-1) 0%, var(--navy-2) 55%, #4650b0 100%);
+      box-shadow: 0 30px 80px -30px rgba(35, 42, 108, 0.55);
+      isolation: isolate;
+    }
+
+    /* slow drifting radial glow behind everything */
+    .cv-card::before {
+      content: "";
+      position: absolute;
+      inset: -40%;
+      z-index: -1;
+      background:
+        radial-gradient(40% 40% at 30% 25%, rgba(91, 99, 214, 0.55), transparent 60%),
+        radial-gradient(45% 45% at 75% 80%, rgba(120, 130, 240, 0.4), transparent 60%);
+      animation: drift 16s var(--ease) infinite alternate;
+    }
+    @keyframes drift {
+      0%   { transform: translate(-4%, -3%) scale(1); }
+      50%  { transform: translate(5%, 4%) scale(1.08); }
+      100% { transform: translate(-2%, 6%) scale(1.04); }
+    }
+
+    /* ── Preview badge ── */
+    .preview-badge {
+      position: absolute;
+      top: 28px;
+      right: 28px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 9px 16px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(6px);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.9);
+    }
+    .preview-badge svg { width: 14px; height: 14px; }
+
+    /* ── Heading + copy ── */
+    .cv-head { margin-top: 96px; }
+    .cv-title {
+      margin: 0;
+      font-size: clamp(28px, 5vw, 40px);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      transition: opacity .5s var(--ease), transform .5s var(--ease);
+    }
+    .cv-desc {
+      margin: 16px 0 0;
+      max-width: 30em;
+      font-size: clamp(15px, 2.4vw, 18px);
+      line-height: 1.5;
+      color: var(--text-muted);
+      transition: opacity .5s var(--ease), transform .5s var(--ease);
+    }
+
+    /* slide enter/leave state applied to title+desc+panel together */
+    .is-leaving .cv-title,
+    .is-leaving .cv-desc,
+    .is-leaving .score-panel { opacity: 0; transform: translateY(10px); }
+
+    /* ── Score panel (glassy) ── */
+    .score-panel {
+      position: relative;
+      margin-top: 36px;
+      padding: 28px 30px;
+      border-radius: var(--radius-panel);
+      background: var(--panel-bg);
+      border: 1px solid var(--panel-border);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -20px 40px -30px rgba(0,0,0,0.5);
+      overflow: hidden;
+      transition: opacity .5s var(--ease), transform .5s var(--ease);
+    }
+    /* moving sheen */
+    .score-panel::after {
+      content: "";
+      position: absolute;
+      top: 0; left: -60%;
+      width: 50%; height: 100%;
+      background: linear-gradient(100deg, transparent, rgba(255,255,255,0.12), transparent);
+      transform: skewX(-18deg);
+      animation: sheen 6s ease-in-out infinite;
+    }
+    @keyframes sheen {
+      0%, 65% { left: -60%; }
+      100%    { left: 130%; }
+    }
+
+    .score-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .score-label { font-size: 18px; color: var(--text-muted); }
+    .score-values {
+      font-size: clamp(28px, 5vw, 38px);
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      font-variant-numeric: tabular-nums;
+    }
+    .score-values .arrow { margin: 0 .25em; color: rgba(255,255,255,0.7); font-weight: 600; }
+    .score-values .after { color: var(--green); }
+    .score-values .max { font-size: .6em; color: rgba(255,255,255,0.55); font-weight: 700; }
+
+    /* progress bars */
+    .bar-group { margin-top: 22px; }
+    .bar-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 15px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+    .bar-meta .num { color: #fff; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .bar-track {
+      height: 9px;
+      border-radius: 999px;
+      background: var(--track);
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      width: 0;
+      border-radius: 999px;
+      transition: width .7s var(--ease);
+    }
+    .bar-fill.before { background: var(--amber); }
+    .bar-fill.after  { background: var(--green); }
+
+    .status-text {
+      margin-top: 18px;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--green);
+      transition: opacity .4s var(--ease);
+    }
+
+    /* ── Pagination dots ── */
+    .dots {
+      position: absolute;
+      left: 40px;
+      bottom: 36px;
+      display: flex;
+      gap: 10px;
+    }
+    .dot {
+      width: 10px; height: 10px;
+      padding: 0;
+      border: 0;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.3);
+      cursor: pointer;
+      transition: width .35s var(--ease), background .35s var(--ease);
+    }
+    .dot:hover { background: rgba(255,255,255,0.5); }
+    .dot.active {
+      width: 34px;
+      background: #fff;
+      animation: dotPulse 2s ease-in-out infinite;
+    }
+    .dot:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+    @keyframes dotPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0.0); }
+      50%      { box-shadow: 0 0 0 5px rgba(255,255,255,0.12); }
+    }
+
+    /* ── Reduced motion: kill ambient/continuous, keep simple fades ── */
+    @media (prefers-reduced-motion: reduce) {
+      .cv-card::before { animation: none; }
+      .score-panel::after { display: none; }
+      .dot.active { animation: none; }
+      .bar-fill { transition: width .3s linear; }
+    }
+
+    @media (max-width: 520px) {
+      .cv-card { padding: 28px; min-height: 520px; }
+      .cv-head { margin-top: 84px; }
+      .score-panel { padding: 22px; }
+      .dots { left: 28px; bottom: 26px; }
+      .preview-badge { top: 20px; right: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <section class="cv-card" id="cvCard" aria-roledescription="carousel" aria-label="CareerSignal product preview">
+    <span class="preview-badge">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 2l1.6 4.6L18 8l-4.4 1.4L12 14l-1.6-4.6L6 8l4.4-1.4L12 2z" fill="currentColor"/>
+      </svg>
+      CareerSignal Preview
+    </span>
+
+    <div class="cv-head">
+      <h2 class="cv-title" id="cvTitle">Scan your CV in seconds</h2>
+      <p class="cv-desc" id="cvDesc">
+        Instant feedback on ATS readability, role clarity, keywords, impact metrics, and recruiter scan strength.
+      </p>
+    </div>
+
+    <!-- aria-live so screen readers hear the score change -->
+    <div class="score-panel" id="scorePanel" aria-live="polite">
+      <div class="score-row">
+        <span class="score-label" id="scoreLabel">CV Score</span>
+        <span class="score-values">
+          <span id="scoreBefore">62</span>
+          <span class="arrow">→</span>
+          <span class="after" id="scoreAfter">84</span><span class="max">/100</span>
+        </span>
+      </div>
+
+      <div class="bar-group">
+        <div class="bar-meta"><span>Before</span><span class="num" id="beforeNum">62</span></div>
+        <div class="bar-track"><div class="bar-fill before" id="beforeBar"></div></div>
+      </div>
+
+      <div class="bar-group">
+        <div class="bar-meta"><span>After improvements</span><span class="num" id="afterNum">84</span></div>
+        <div class="bar-track"><div class="bar-fill after" id="afterBar"></div></div>
+      </div>
+
+      <p class="status-text" id="statusText">ATS Readiness: Strong</p>
+    </div>
+
+    <div class="dots" id="dots" role="tablist" aria-label="Choose preview"></div>
+  </section>
+
+  <script>
+    /* ════════════════════ EDITABLE SLIDE DATA ════════════════════ */
+    const SLIDES = [
+      { label: 'CV Score',            before: 62, after: 84, status: 'ATS Readiness: Strong' },
+      { label: 'JD Match',            before: 48, after: 79, status: 'Keyword Alignment: Improved' },
+      { label: 'Recruiter Scan',      before: 55, after: 88, status: 'Impact Clarity: High' },
+      { label: 'Skills Fit',          before: 51, after: 81, status: 'Role Match: Strong' },
+      { label: 'Interview Readiness', before: 58, after: 86, status: 'Story Strength: Better' },
+    ];
+    const TITLE = 'Scan your CV in seconds';
+    const DESC  = 'Instant feedback on ATS readability, role clarity, keywords, impact metrics, and recruiter scan strength.';
+    const INTERVAL_MS = 2000;
+    /* ══════════════════════════════════════════════════════════════ */
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const $ = (id) => document.getElementById(id);
+    const card = $('cvCard');
+    const els = {
+      title: $('cvTitle'), desc: $('cvDesc'), label: $('scoreLabel'),
+      before: $('scoreBefore'), after: $('scoreAfter'),
+      beforeNum: $('beforeNum'), afterNum: $('afterNum'),
+      beforeBar: $('beforeBar'), afterBar: $('afterBar'),
+      status: $('statusText'), dots: $('dots'), panel: $('scorePanel'),
+    };
+
+    let index = 0, timer = null;
+    const tweens = new WeakMap();
+
+    els.title.textContent = TITLE;
+    els.desc.textContent = DESC;
+
+    // Build dot buttons
+    SLIDES.forEach((s, i) => {
+      const b = document.createElement('button');
+      b.className = 'dot' + (i === 0 ? ' active' : '');
+      b.type = 'button';
+      b.setAttribute('role', 'tab');
+      b.setAttribute('aria-label', `Show ${s.label}`);
+      b.setAttribute('aria-selected', i === 0 ? 'true' : 'false');
+      b.addEventListener('click', () => { go(i); restart(); });
+      els.dots.appendChild(b);
+    });
+
+    /* Tween an integer value over ~600ms with easing. */
+    function tweenNumber(el, to) {
+      const from = parseInt(el.textContent, 10) || 0;
+      if (reduceMotion || from === to) { el.textContent = to; return; }
+      cancelAnimationFrame(tweens.get(el));
+      const start = performance.now(), dur = 600;
+      const step = (now) => {
+        const t = Math.min(1, (now - start) / dur);
+        const eased = 1 - Math.pow(1 - t, 3);
+        el.textContent = Math.round(from + (to - from) * eased);
+        if (t < 1) tweens.set(el, requestAnimationFrame(step));
+      };
+      tweens.set(el, requestAnimationFrame(step));
+    }
+
+    function paint(i) {
+      const s = SLIDES[i];
+      els.label.textContent = s.label;
+      els.status.textContent = s.status;
+      tweenNumber(els.before, s.before);
+      tweenNumber(els.after, s.after);
+      tweenNumber(els.beforeNum, s.before);
+      tweenNumber(els.afterNum, s.after);
+      // bars animate from current width to new (% of 100)
+      requestAnimationFrame(() => {
+        els.beforeBar.style.width = s.before + '%';
+        els.afterBar.style.width = s.after + '%';
+      });
+      els.dots.querySelectorAll('.dot').forEach((d, di) => {
+        d.classList.toggle('active', di === i);
+        d.setAttribute('aria-selected', di === i ? 'true' : 'false');
+      });
+    }
+
+    function go(i) {
+      const next = (i + SLIDES.length) % SLIDES.length;
+      if (next === index && els.beforeBar.style.width) return;
+      index = next;
+      if (reduceMotion) { paint(index); return; }
+      // layered fade-out → swap → fade-in
+      card.classList.add('is-leaving');
+      setTimeout(() => {
+        paint(index);
+        card.classList.remove('is-leaving');
+      }, 280);
+    }
+
+    function start() { if (!timer) timer = setInterval(() => go(index + 1), INTERVAL_MS); }
+    function stop()  { clearInterval(timer); timer = null; }
+    function restart() { stop(); start(); }
+
+    // Pause on hover, resume on leave
+    card.addEventListener('mouseenter', stop);
+    card.addEventListener('mouseleave', start);
+    // Pause when tab hidden (saves cycles, avoids jump on return)
+    document.addEventListener('visibilitychange', () => document.hidden ? stop() : start());
+
+    // init
+    paint(0);
+    start();
+  </script>
+</body>
+</html>

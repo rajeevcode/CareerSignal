@@ -35,73 +35,73 @@ export function InterviewSignalCard({
 }: Props) {
   return (
     <div className={cn(
-      'rounded-xl border border-slate-200 bg-white p-6 shadow-sm',
+      'rounded-xl border border-border bg-card p-6 shadow-sm',
       sticky && 'lg:sticky lg:top-24',
     )}>
-      <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">Your match</p>
-      <h3 className="mt-1 text-lg font-semibold text-slate-900">Interview Signal</h3>
+      <p className="text-xs font-semibold uppercase tracking-wide text-primary">Your match</p>
+      <h3 className="mt-1 text-lg font-semibold text-foreground">Interview Signal</h3>
 
       <div className="mt-4 flex items-center gap-4">
         <div
           className={cn(
             'flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-4',
-            score >= 70 ? 'border-emerald-500 bg-emerald-50' :
-            score >= 55 ? 'border-amber-500 bg-amber-50' :
-            'border-red-400 bg-red-50',
+            score >= 70 ? 'border-success bg-success-soft' :
+            score >= 55 ? 'border-warning bg-warning-soft' :
+            'border-risk bg-risk-soft',
           )}
         >
           <span className={cn('text-2xl font-bold', getProbabilityColor(score))}>
-            {Math.round(score)}%
+            {Math.round(score)}/100
           </span>
         </div>
         <div>
-          <p className="text-sm text-slate-500">{getSignalBand(score)}</p>
+          <p className="text-sm text-muted-foreground">{getSignalBand(score)}</p>
           <p className={cn('text-lg font-semibold', getProbabilityColor(score))}>
             {getProbabilityLabel(score)} signal
           </p>
-          <p className="mt-1 text-xs text-slate-400">Estimate only — not a guarantee</p>
+          <p className="mt-1 text-xs text-muted-foreground">Heuristic fit score, not an interview probability. Missing context uses neutral defaults.</p>
         </div>
       </div>
 
       {(jdMatchScore != null || cvScore != null) && (
-        <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-4">
+        <div className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-4">
           {jdMatchScore != null && (
-            <div className="rounded-lg bg-slate-50 p-3">
-              <p className="text-xs text-slate-500">JD Match</p>
-              <p className="text-lg font-bold text-slate-900">{Math.round(jdMatchScore)}%</p>
+            <div className="rounded-lg bg-muted p-3">
+              <p className="text-xs text-muted-foreground">JD Match</p>
+              <p className="text-lg font-bold text-foreground">{Math.round(jdMatchScore)}%</p>
             </div>
           )}
           {cvScore != null && (
-            <div className="rounded-lg bg-slate-50 p-3">
-              <p className="text-xs text-slate-500">CV Score</p>
-              <p className="text-lg font-bold text-slate-900">{Math.round(cvScore)}%</p>
+            <div className="rounded-lg bg-muted p-3">
+              <p className="text-xs text-muted-foreground">CV Score</p>
+              <p className="text-lg font-bold text-foreground">{Math.round(cvScore)}%</p>
             </div>
           )}
         </div>
       )}
 
       {explanation?.summary && (
-        <p className="mt-4 text-sm leading-relaxed text-slate-700">{explanation.summary}</p>
+        <p className="mt-4 text-sm leading-relaxed text-foreground">{explanation.summary}</p>
       )}
 
       {!compact && breakdown && (
-        <div className="mt-5 space-y-2.5 border-t border-slate-100 pt-5">
+        <div className="mt-5 space-y-2.5 border-t border-border pt-5">
           {Object.entries(JD_LABELS).map(([key, label]) => {
             const val = breakdown[key as keyof MatchScoreBreakdown] as number;
             if (typeof val !== 'number') return null;
             return (
               <div key={key} className="flex items-center gap-3">
-                <span className="w-36 shrink-0 text-xs text-slate-600">{label}</span>
-                <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                <span className="w-36 shrink-0 text-xs text-muted-foreground">{label}</span>
+                <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
                   <div
                     className={cn(
                       'h-full rounded-full',
-                      val >= 75 ? 'bg-emerald-500' : val >= 50 ? 'bg-amber-500' : 'bg-red-400',
+                      val >= 75 ? 'bg-success' : val >= 50 ? 'bg-warning' : 'bg-risk',
                     )}
                     style={{ width: `${val}%` }}
                   />
                 </div>
-                <span className="w-10 text-right text-xs font-medium text-slate-700">{Math.round(val)}%</span>
+                <span className="w-10 text-right text-xs font-medium text-foreground">{Math.round(val)}%</span>
               </div>
             );
           })}

@@ -8,15 +8,15 @@ export default async function OnboardingRolesPage() {
   const session = await getSession();
   if (!session) redirect('/login');
 
-  const candidate = getCandidateRowByUserId(session.userId);
+  const candidate = await getCandidateRowByUserId(session.userId);
   if (!candidate) redirect('/register');
   if (candidate.onboardingComplete) redirect('/dashboard');
 
   if ((candidate.onboardingStep ?? 0) < 1) redirect('/onboarding/cv');
-  if ((candidate.onboardingStep ?? 0) < 2) redirect('/onboarding/profile');
+  if ((candidate.onboardingStep ?? 0) < 1) redirect('/onboarding/cv');
 
-  const skills = listCandidateSkills(candidate.id).map((s) => s.skillName);
-  const experienceTitles = listCandidateExperience(candidate.id).map((e) => e.title);
+  const skills = (await listCandidateSkills(candidate.id)).map((s) => s.skillName);
+  const experienceTitles = (await listCandidateExperience(candidate.id)).map((e) => e.title);
   const existingRoles = parseJsonArray<string>(candidate.targetRoles);
 
   return (

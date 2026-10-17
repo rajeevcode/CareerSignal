@@ -8,7 +8,8 @@
     "build": "pnpm --filter @careersignal/shared build && pnpm --filter @careersignal/db build && pnpm --filter @careersignal/web build",
     "lint": "pnpm --filter @careersignal/web lint",
     "db:push": "pnpm --filter @careersignal/db db:push",
-    "db:seed": "pnpm --filter @careersignal/db db:seed"
+    "db:seed": "node supabase/seed/seed.mjs",
+    "check:all-phases": "node scripts/check-all-phases.mjs"
   },
   "devDependencies": {
     "typescript": "^5.7.3"
@@ -16,5 +17,14 @@
   "packageManager": "pnpm@9.15.0",
   "engines": {
     "node": ">=20"
+  },
+  "pnpm": {
+    "overrides": {
+      "shell-quote@<1.11.0": "1.11.0",
+      "browserslist@<4.28.7": "4.28.7",
+      "fflate@<0.4.9": "0.4.9",
+      "baseline-browser-mapping@<2.11.0": "2.11.0",
+      "source-map-js@<1.2.2": "1.2.2"
+    }
   }
 }

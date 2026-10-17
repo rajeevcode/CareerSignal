@@ -26,37 +26,37 @@ export function FilterSidebar() {
   }, [router, searchParams]);
 
   return (
-    <aside className="space-y-5 rounded-xl border border-slate-200 bg-white p-5">
-      <h3 className="font-semibold text-slate-900">Filters</h3>
+    <aside className="space-y-5 rounded-xl border border-border bg-card p-5">
+      <h3 className="font-semibold text-foreground">Filters</h3>
 
       <div>
-        <label className="text-xs font-medium text-slate-600">Search</label>
+        <label className="text-xs font-medium text-muted-foreground">Search</label>
         <input
           type="text"
           defaultValue={searchParams.get('q') || ''}
           onChange={(e) => update('q', e.target.value)}
           placeholder="Role, skill, company..."
-          className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+          className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
         />
       </div>
 
       <div>
-        <label className="text-xs font-medium text-slate-600">Location</label>
+        <label className="text-xs font-medium text-muted-foreground">Location</label>
         <input
           type="text"
           defaultValue={searchParams.get('location') || ''}
           onChange={(e) => update('location', e.target.value)}
           placeholder="City or country"
-          className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+          className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
         />
       </div>
 
       <div>
-        <label className="text-xs font-medium text-slate-600">Remote policy</label>
+        <label className="text-xs font-medium text-muted-foreground">Remote policy</label>
         <select
           value={searchParams.get('remote_type') || ''}
           onChange={(e) => update('remote_type', e.target.value)}
-          className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+          className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
         >
           {REMOTE_OPTIONS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
@@ -65,11 +65,11 @@ export function FilterSidebar() {
       </div>
 
       <div>
-        <label className="text-xs font-medium text-slate-600">Function</label>
+        <label className="text-xs font-medium text-muted-foreground">Function</label>
         <select
           value={searchParams.get('function_tag') || ''}
           onChange={(e) => update('function_tag', e.target.value)}
-          className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+          className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
         >
           <option value="">Any</option>
           {FUNCTION_OPTIONS.filter(Boolean).map((f) => (
@@ -79,13 +79,13 @@ export function FilterSidebar() {
       </div>
 
       <div>
-        <label className="text-xs font-medium text-slate-600">Min experience (years)</label>
+        <label className="text-xs font-medium text-muted-foreground">Min experience (years)</label>
         <input
           type="number"
           min={0}
           defaultValue={searchParams.get('experience_min') || ''}
           onChange={(e) => update('experience_min', e.target.value)}
-          className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+          className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
         />
       </div>
 
